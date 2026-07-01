@@ -264,12 +264,12 @@ class BitForge(QMainWindow):
             rdl.addWidget(b); self._rad_btns[r]=b
         tbl.addWidget(rdf,1); v.addWidget(tb)
 
-        # 显示
-        self._dsp=SiLabelRefactor(self); self._dsp.setMinimumHeight(100)
-        self._dsp.setBackgroundColor("#10141c"); self._dsp.setBorderRadius(16)
-        self._dsp.setAlignment(Qt.AlignRight|Qt.AlignBottom)
-        self._dsp.setFont(SiFont.getFont(size=34)); self._dsp.setTextColor("#FFFFFF")
-        self._dsp.setText("0"); self._dsp.setContentsMargins(16,12,16,12); v.addWidget(self._dsp)
+        # 显示 (用 _dsp_lbl 以免与字符串 _dsp 冲突)
+        self._dsp_lbl=SiLabelRefactor(self); self._dsp_lbl.setMinimumHeight(100)
+        self._dsp_lbl.setBackgroundColor("#10141c"); self._dsp_lbl.setBorderRadius(16)
+        self._dsp_lbl.setAlignment(Qt.AlignRight|Qt.AlignBottom)
+        self._dsp_lbl.setFont(SiFont.getFont(size=34)); self._dsp_lbl.setTextColor("#FFFFFF")
+        self._dsp_lbl.setText("0"); self._dsp_lbl.setContentsMargins(16,12,16,12); v.addWidget(self._dsp_lbl)
 
         # Bit指示器
         self._bits=BitGlowIndicator(self); self._bits.setObjectName("bits"); v.addWidget(self._bits)
@@ -390,7 +390,7 @@ class BitForge(QMainWindow):
         for w,b in self._bw_btns.items(): b.setStyleSheet(self._ts(w==self._bw))
         for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(False, r==self._rad))
 
-        self._dsp.setBackgroundColor(t["display_bg"]); self._dsp.setTextColor(t["display_text"])
+        self._dsp_lbl.setBackgroundColor(t["display_bg"]); self._dsp_lbl.setTextColor(t["display_text"])
         self._bits.set_theme(t)
         self._bits.setStyleSheet(f"#bits{{background:{t['display_bg']};border-radius:0 0 16px 16px;}}")
         for nm,lb in self._aux.items(): lb.setBackgroundColor(t["aux_bg"]); lb.setTextColor(t["aux_text"])
@@ -459,7 +459,7 @@ class BitForge(QMainWindow):
         op,lhs,rhs=self._pend["op"],self._pend["lhs"],self._v
         try: r=self._compute(op,lhs,rhs)
         except (ZeroDivisionError,ValueError):
-            self._err=True; self._dsp.setText("Error"); self._dsp.setTextColor("#ff6b6b"); return
+            self._err=True; self._dsp_lbl.setText("Error"); self._dsp_lbl.setTextColor("#ff6b6b"); return
         self._v=clamp(r,self._bw); self._dsp=self._fmt(self._v); self._pend=None
     @staticmethod
     def _compute(op,lhs,rhs):
@@ -491,9 +491,9 @@ class BitForge(QMainWindow):
         if self._rad==16: dt="0x"+dt
         elif self._rad==8: dt="0o"+dt
         elif self._rad==2: dt="0b"+dt
-        self._dsp.setText(dt)
+        self._dsp_lbl.setText(dt)
         sgn=to_signed(u,self._bw)
-        self._dsp.setTextColor(t["display_neg"] if (sgn<0 and self._rad==10) else t["display_text"])
+        self._dsp_lbl.setTextColor(t["display_neg"] if (sgn<0 and self._rad==10) else t["display_text"])
         self._bits.set_val(self._v,self._bw)
         self._aux["DEC"].setText(f"DEC  {sgn}")
         self._aux["HEX"].setText(f"HEX  0x{format(u,'X')}")
