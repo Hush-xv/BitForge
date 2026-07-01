@@ -57,6 +57,8 @@ class AppTheme:
         "toggle_rad_text":"#ffffff",
         "digit_bg":       "#232834",
         "digit_fg":       "#FFFFFF",
+        "digit_dim_bg":   "#161920",
+        "digit_dim_fg":   "#383c48",
         "op_bg":          "#0a1428",
         "op_fg":          "#80c0ff",
         "bit_bg":         "#1a142e",
@@ -102,6 +104,8 @@ class AppTheme:
         "toggle_rad_text":"#ffffff",
         "digit_bg":       "#e8ecf2",
         "digit_fg":       "#181a20",
+        "digit_dim_bg":   "#ccd0d8",
+        "digit_dim_fg":   "#a0a4ae",
         "op_bg":          "#dce8ff",
         "op_fg":          "#2050b0",
         "bit_bg":         "#efe8ff",
@@ -137,16 +141,26 @@ class BFButton(SiPushButtonRefactor):
         "ac":("ac_bg","ac_fg"), "bs":("bs_bg","bs_fg"),
         "func":("func_bg","func_fg"),
     }
+    DIM_KEYS = {
+        "digit":("digit_dim_bg","digit_dim_fg"),
+        "func":("digit_dim_bg","digit_dim_fg"),
+    }
     def __init__(self, text, style="digit", icon_name="", parent=None):
         super().__init__(parent)
         self._keys = self.STYLES.get(style, ("digit_bg","digit_fg"))
+        self._dim_keys = self.DIM_KEYS.get(style, style)
+        self._dimmed = False
         self.setText(text)
         self.setFont(SiFont.getFont(size=15))
         self.setMinimumSize(58, 46)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._iname = icon_name
     def apply_theme(self, t):
-        bg, fg = QColor(t[self._keys[0]]), QColor(t[self._keys[1]])
+        if self._dimmed and isinstance(self._dim_keys, tuple):
+            k = self._dim_keys
+        else:
+            k = self._keys
+        bg, fg = QColor(t[k[0]]), QColor(t[k[1]])
         sd = self.style_data
         sd.button_color = bg; sd.text_color = fg
         sd.background_color = QColor(0, 0, 0, 0)
@@ -158,6 +172,13 @@ class BFButton(SiPushButtonRefactor):
                 svg = SiGlobal.siui.iconpack.getByteArray(self._iname, t["bit_fg"])
                 self.setSvgIcon(bytes(svg))
             except Exception: pass
+    def set_dimmed(self, dim: bool):
+        if dim != self._dimmed:
+            self._dimmed = dim
+            self.update()
+    def set_dimmed(self, dim: bool):
+        self._dimmed = dim
+        self.update()
 
 # =====================================================================
 #  Bit 指示器
@@ -248,7 +269,7 @@ class BitForge(QMainWindow):
         self._rad_btns={}
         self._rdf=rdf=QFrame(); rdf.setObjectName("rdf")
         rdl=QHBoxLayout(rdf); rdl.setContentsMargins(3,3,3,3); rdl.setSpacing(0)
-        for lb,r in [("HEX",16),("DEC",10),("OCT",8)]:
+        for lb,r in [("HEX",16),("DEC",10),("OCT",8),("BIN",2)]:
             b=QPushButton(lb); b.setCheckable(True); b.setChecked(r==10)
             b.setFont(self._mf(10)); b.setFixedHeight(24); b.setMinimumWidth(44)
             b.clicked.connect(lambda _,rr=r: self._on_radix(rr))
@@ -308,19 +329,21 @@ class BitForge(QMainWindow):
              ("F","func","",lambda: self._on_digit("F")),
              (">>","bit","ic_fluent_arrow_next_filled",lambda: self._on_op("rsh"))],
         ]
-        self._btns=[]
+        self._btns=[]; self._digit_btns={}
         grid=QWidget(); gl=QVBoxLayout(grid); gl.setContentsMargins(0,0,0,0); gl.setSpacing(5)
         for rd in rows:
             rw=QWidget(); rl=QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0); rl.setSpacing(5)
             for txt,sty,icon,cb in rd:
                 btn=BFButton(txt,sty,icon,self); btn.clicked.connect(cb)
                 rl.addWidget(btn); self._btns.append(btn)
+                if txt in "0123456789ABCDEF":
+                    self._digit_btns[txt] = btn
             gl.addWidget(rw)
         v.addWidget(grid,1)
 
         # 提示
         self._hint=SiLabelRefactor(self)
-        self._hint.setText("KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc")
+        self._hint.setText("KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  · 按键自动适配进制")
         self._hint.setFont(SiFont.getFont(size=10)); self._hint.setTextColor("#3b4252")
         self._hint.setAlignment(Qt.AlignCenter); self._hint.setFixedHeight(18)
         v.addWidget(self._hint)
@@ -385,6 +408,7 @@ class BitForge(QMainWindow):
         self._bits.setStyleSheet(f"#bits{{background:{t['display_bg']};border-radius:0 0 16px 16px;}}")
         for nm,lb in self._aux.items(): lb.setBackgroundColor(t["aux_bg"]); lb.setTextColor(t["aux_text"])
         for b in self._btns: b.apply_theme(t)
+        self._update_digit_buttons()
         self._hint.setTextColor(t["hint_text"])
         self._gear.setStyleSheet(f"QPushButton{{background:transparent;color:{t['title_sub']};border:none;font-size:16px;}}"
                                   f"QPushButton:hover{{color:{t['menu_acc']};}}")
@@ -402,6 +426,15 @@ class BitForge(QMainWindow):
     def _urd(self):
         for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(r==self._rad))
 
+    def _update_digit_buttons(self):
+        """根据当前进制，启用/禁用数字按钮"""
+        valid = {16:"0123456789ABCDEF", 10:"0123456789", 8:"01234567", 2:"01"}[self._rad]
+        for ch, btn in self._digit_btns.items():
+            dim = ch not in valid
+            btn.set_dimmed(dim)
+        # 重新应用主题颜色
+        for b in self._btns: b.apply_theme(self._t)
+
     @staticmethod
     def _mf(sz):
         try: return SiFont.getFont(size=sz)
@@ -411,7 +444,7 @@ class BitForge(QMainWindow):
 
     def _on_radix(self,r):
         if self._rad==r or self._err: return
-        self._rad=r; self._new=True; self._urd(); self._render()
+        self._rad=r; self._new=True; self._urd(); self._update_digit_buttons(); self._render()
     def _on_digit(self,d):
         if self._err: self._on_clear()
         vm={16:"0123456789ABCDEFabcdef",10:"0123456789",8:"01234567",2:"01"}
