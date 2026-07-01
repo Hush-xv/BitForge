@@ -1,7 +1,7 @@
 # BitForge
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Hush-xv/BitForge/main/concept.html" width="60" alt="BitForge Logo" />
+  <code style="font-size:48px;font-weight:bold;color:#d2a8ff">⌨️ BitForge</code>
 </p>
 <p align="center">
   <b>BitForge</b> — A sleek programmer calculator built with PyQt5 + SiliconUI.<br>
@@ -9,7 +9,6 @@
 </p>
 <p align="center">
   <a href="#features">Features</a> ·
-  <a href="#screenshots">Screenshots</a> ·
   <a href="#installation">Install</a> ·
   <a href="#keyboard">Shortcuts</a> ·
   <a href="#build">Build</a> ·
@@ -23,10 +22,8 @@
 | Feature | Description |
 |---------|-------------|
 | 🧮 **Arithmetic** | `+` `−` `×` `/` `%` with integer division |
-| 🔢 **Radix Switch** | HEX / DEC / OCT / BIN — digit keys auto-adapt |
-| 📏 **Bit Width** | 8 / 16 / 32 / 64-bit with automatic overflow clamping |
-| ⚡ **Bitwise Ops** | AND · OR · XOR · NOT · `<<` · `>>` |
-| 👁️ **Live Preview** | All four radices displayed simultaneously |
+| 🔢 **Radix Switch** | DEC / HEX / OCT — digit keys auto-adapt |
+| 👁️ **Live Preview** | All radices displayed simultaneously (DEC · HEX · OCT) |
 | 💡 **Bit Indicator** | Binary bits grouped by byte, with purple radial glow |
 | 🎨 **Dual Theme** | Dark / Light theme with data-driven color system |
 | ⚙️ **Settings** | QMenu-based settings panel (theme toggle + version info) |
@@ -38,22 +35,20 @@
 
 ## Screenshots / 截图
 
-> *Run `python bitforge.py` to see it live, or open `concept.html` in your browser for a static preview.*
-
-### Dark Theme / 暗色主题
+> *Run `python bitforge.py` to see it live.*
 
 ```
 ┌──────────────────────────────────────┐
-│ 🧮 BitForge  Programmer      ⚙ v1.2 │
+│ ⌨️ BitForge  Programmer      ⚙ v1.3 │
 │ ┌──────────────────────────────────┐ │
-│ │  0x                           0  │ │
-│ │  11111111 11111111 00000000 ...  │ │
+│ │  0xFF                         255│ │
+│ │  11111111 00000000 00000000 ...  │ │
 │ └──────────────────────────────────┘ │
-│  DEC  0  │ HEX  0x0 │ OCT  0 │ BIN │
+│  DEC  255 │ HEX  0xFF │ OCT  0o377  │
 │ ┌────┬────┬────┬────┬────┐         │
-│ │ AC │ ⌫  │ %  │ ÷  │NOT │         │
-│ │ 7  │ 8  │ 9  │ ×  │AND │         │
-│ │ 4  │ 5  │ 6  │ −  │ OR │         │
+│ │ AC │ ⌫  │ %  │ /  │NOT │         │
+│ │ 7  │ 8  │ 9  │ *  │AND │         │
+│ │ 4  │ 5  │ 6  │ -  │ OR │         │
 │ │ 1  │ 2  │ 3  │ +  │XOR │         │
 │ │ 0  │ A  │ B  │ =  │ << │         │
 │ │ C  │ D  │ E  │ F  │ >> │         │
@@ -129,7 +124,7 @@ python build.py           # produces dist/BitForge.exe
 
 ```
 BitForge/
-├── bitforge.py          # Main application (~500 lines)
+├── bitforge.py          # Main application (~480 lines)
 ├── build.py             # PyInstaller packaging script
 ├── concept.html          # Static design mockup (SiliconUI style)
 ├── dist/
@@ -149,6 +144,14 @@ BitForge/
 | **Animation** | `SiExpAnimationRefactor` — exponential easing |
 | **Packaging** | PyInstaller (single-file EXE) |
 | **Theme System** | Data-driven `AppTheme` dict (30+ color tokens) |
+
+---
+
+## Vibe Coding
+
+This entire project — from the first line of code to the final EXE, from concept design to GitHub deployment — was created entirely through **vibe coding**: conversational AI-assisted development where every feature, fix, and optimization was specified in natural language and implemented collaboratively with AI. No traditional IDE, no manual code editing, no build scripts written by hand. Just prompts, iterations, and the occasional "it crashes when I click this button."
+
+> *"Vibe coding" — a term popularized by Andrej Karpathy, describing the experience of building software through AI pair programming, where you describe what you want in plain language and the AI writes the code.*
 
 ---
 

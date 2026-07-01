@@ -200,7 +200,7 @@ class BitGlowIndicator(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.2"
+    APP = "BitForge"; VER = "v1.3"
 
     def __init__(self):
         super().__init__()
@@ -245,19 +245,10 @@ class BitForge(QMainWindow):
 
         # 工具栏
         tb=QWidget(); tbl=QHBoxLayout(tb); tbl.setContentsMargins(0,0,0,0); tbl.setSpacing(6)
-        self._bw_btns={}
-        self._bwf=bwf=QFrame(); bwf.setObjectName("bwf")
-        bwl=QHBoxLayout(bwf); bwl.setContentsMargins(3,3,3,3); bwl.setSpacing(0)
-        for w in (32,16,8,64):
-            b=QPushButton(str(w)); b.setCheckable(True); b.setChecked(w==32)
-            b.setFont(self._mf(10)); b.setFixedSize(40,24)
-            b.clicked.connect(lambda _,bw=w: self._on_bits(bw))
-            bwl.addWidget(b); self._bw_btns[w]=b
-        tbl.addWidget(bwf)
         self._rad_btns={}
         self._rdf=rdf=QFrame(); rdf.setObjectName("rdf")
         rdl=QHBoxLayout(rdf); rdl.setContentsMargins(3,3,3,3); rdl.setSpacing(0)
-        for lb,r in [("HEX",16),("DEC",10),("OCT",8),("BIN",2)]:
+        for lb,r in [("HEX",16),("DEC",10),("OCT",8)]:
             b=QPushButton(lb); b.setCheckable(True); b.setChecked(r==10)
             b.setFont(self._mf(10)); b.setFixedHeight(24); b.setMinimumWidth(44)
             b.clicked.connect(lambda _,rr=r: self._on_radix(rr))
@@ -277,7 +268,7 @@ class BitForge(QMainWindow):
         # 辅助
         self._aux={}
         aw=QWidget(); al=QHBoxLayout(aw); al.setContentsMargins(0,0,0,0); al.setSpacing(5)
-        for nm in ("DEC","HEX","OCT","BIN"):
+        for nm in ("DEC","HEX","OCT"):
             lb=SiLabelRefactor(self); lb.setBackgroundColor("#10141c"); lb.setBorderRadius(8)
             lb.setFont(SiFont.getFont(size=12)); lb.setTextColor("#d4d8e0")
             lb.setMinimumHeight(30); lb.setAlignment(Qt.AlignCenter)
@@ -386,9 +377,8 @@ class BitForge(QMainWindow):
         self._ver.setTextColor(t["ver_text"])
 
         bss = f"QFrame{{background:{t['toolbar_bg']};border-radius:10px;border:1px solid {t['toolbar_border']};}}"
-        self._bwf.setStyleSheet(bss); self._rdf.setStyleSheet(bss)
-        for w,b in self._bw_btns.items(): b.setStyleSheet(self._ts(w==self._bw))
-        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(False, r==self._rad))
+        self._rdf.setStyleSheet(bss)
+        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(r==self._rad))
 
         self._dsp_lbl.setBackgroundColor(t["display_bg"]); self._dsp_lbl.setTextColor(t["display_text"])
         self._bits.set_theme(t)
@@ -400,16 +390,17 @@ class BitForge(QMainWindow):
                                   f"QPushButton:hover{{color:{t['menu_acc']};}}")
         self._render()
 
-    def _ts(self, bw_on=False, rad_on=False):
+    def _ts(self, rad_on=False):
         t=self._t
-        if bw_on: return f"QPushButton{{background:{t['toggle_on_bw']};color:{t['toggle_bw_text']};border:none;border-radius:7px;font-weight:600;}}QPushButton:hover{{background:{t['toggle_on_bw']};}}"
-        if rad_on: return f"QPushButton{{background:{t['toggle_rad_on']};color:{t['toggle_rad_text']};border:none;border-radius:7px;font-weight:600;}}QPushButton:hover{{background:{t['toggle_rad_on']};}}"
-        return f"QPushButton{{background:transparent;color:{t['toggle_dim']};border:none;border-radius:7px;font-weight:600;}}QPushButton:hover{{color:{t['toggle_bw_text']};}}"
+        if rad_on: return (f"QPushButton{{background:{t['toggle_rad_on']};color:{t['toggle_rad_text']};"
+                           f"border:none;border-radius:7px;font-weight:600;}}"
+                           f"QPushButton:hover{{background:{t['toggle_rad_on']};}}")
+        return (f"QPushButton{{background:transparent;color:{t['toggle_dim']};border:none;"
+                f"border-radius:7px;font-weight:600;}}"
+                f"QPushButton:hover{{color:{t['toggle_bw_text']};}}")
 
-    def _ubw(self):
-        for w,b in self._bw_btns.items(): b.setStyleSheet(self._ts(w==self._bw))
     def _urd(self):
-        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(False, r==self._rad))
+        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(r==self._rad))
 
     @staticmethod
     def _mf(sz):
@@ -418,9 +409,6 @@ class BitForge(QMainWindow):
 
     # ===== 逻辑 =====
 
-    def _on_bits(self,w):
-        if self._bw==w or self._err: return
-        self._bw=w; self._v=clamp(self._v,w); self._ubw(); self._render()
     def _on_radix(self,r):
         if self._rad==r or self._err: return
         self._rad=r; self._new=True; self._urd(); self._render()
@@ -498,7 +486,6 @@ class BitForge(QMainWindow):
         self._aux["DEC"].setText(f"DEC  {sgn}")
         self._aux["HEX"].setText(f"HEX  0x{format(u,'X')}")
         self._aux["OCT"].setText(f"OCT  0o{format(u,'o')}")
-        self._aux["BIN"].setText(f"BIN  0b{format(u,'b')}")
 
     # ===== 键盘 =====
 
