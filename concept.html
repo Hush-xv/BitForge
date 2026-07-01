@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyQt-SiliconUI 程序员计算器 · 概念设计</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #1a1f2b;
+    font-family: 'Segoe UI', 'Cascadia Code', 'Consolas', monospace;
+    padding: 24px;
+}
+/* ===== 标注 ===== */
+.disclaimer {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d3341;
+    color: #b0b8c4;
+    padding: 8px 22px;
+    border-radius: 20px;
+    font-size: 13px;
+    border: 1px solid #3b4252;
+    z-index: 100;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.disclaimer strong { color: #d2a8ff; }
+
+/* ===== 计算器外框 — SiliconUI 风格 ===== */
+.calculator {
+    width: 480px;
+    background: #201d23;
+    border-radius: 20px;
+    padding: 24px 22px 28px;
+    border: 1px solid #3a3543;
+    box-shadow:
+        0 20px 60px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+    position: relative;
+}
+/* 顶栏光晕 */
+.calculator::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 20%; right: 20%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #6e40c9, #d2a8ff, #6e40c9, transparent);
+    border-radius: 0 0 4px 4px;
+    opacity: 0.6;
+}
+
+/* ===== Header ===== */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2d2932;
+}
+.header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #d1cbd4;
+    letter-spacing: 0.4px;
+}
+.header h1 span { color: #7c7084; font-weight: 400; }
+.header .badge {
+    background: #2d2932;
+    color: #7c7084;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    border: 1px solid #3a3543;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* ===== 位宽切换 + 进制标签 (合并一行) ===== */
+.toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.bits-group, .radix-group {
+    display: flex;
+    gap: 0;
+    background: #0d1117;
+    border-radius: 10px;
+    padding: 3px;
+    border: 1px solid #1f2430;
+}
+.radix-group { flex: 1; }
+.bits-group button, .radix-group button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #7c7084;
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.bits-group button.active {
+    background: #2d2932;
+    color: #d1cbd4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.radix-group button.active {
+    background: #6e40c9;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(110,64,201,0.25);
+}
+
+/* ===== 显示区 (SiLabelRefactor 风格) ===== */
+.display {
+    background: #0d1117;
+    border-radius: 14px;
+    padding: 16px 18px 12px;
+    margin-bottom: 14px;
+    border: 1px solid #1f2430;
+    position: relative;
+    overflow: hidden;
+}
+/* 顶部光晕装饰线 */
+.display::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #6e40c944, transparent);
+}
+.display .value {
+    font-size: 30px;
+    font-weight: 700;
+    color: #d1cbd4;
+    text-align: right;
+    word-break: break-all;
+    min-height: 38px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    letter-spacing: -0.5px;
+}
+.display .bits-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid #1f2430;
+    font-size: 11px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    letter-spacing: 0.3px;
+    overflow-x: auto;
+    min-height: 20px;
+    flex-wrap: wrap;
+}
+.display .bits-row .bit-group { display: flex; gap: 4px; }
+.display .bits-row .bit-group .on { color: #d087df; }
+.display .bits-row .bit-group .off { color: #2d2932; }
+
+/* ===== 辅助信息 ===== */
+.aux {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.aux .item {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 5px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #1f2430;
+    font-size: 12px;
+}
+.aux .item .lbl { color: #545d6e; font-weight: 500; }
+.aux .item .val { color: #b0b8c4; font-family: 'Cascadia Code', 'Consolas', monospace; font-weight: 600; }
+
+/* ===== 按钮网格 (仿 SiPushButtonRefactor) ===== */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+.grid button {
+    position: relative;
+    background: #2d2932;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 0;
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 600;
+    color: #d1cbd4;
+    cursor: pointer;
+    transition: all 0.12s;
+    user-select: none;
+    box-shadow:
+        0 3px 0 #1a1720,
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.grid button:hover {
+    background: #3a3543;
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 0 #1a1720,
+        inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.grid button:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #1a1720,
+        inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* 操作符 — 蓝色系 */
+.grid button.op {
+    background: #0d1a2b;
+    color: #58a6ff;
+    box-shadow:
+        0 3px 0 #08101a,
+        inset 0 1px 0 rgba(88,166,255,0.08);
+}
+.grid button.op:hover {
+    background: #112c4a;
+    box-shadow:
+        0 4px 0 #08101a,
+        inset 0 1px 0 rgba(88,166,255,0.12);
+}
+.grid button.op:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #08101a,
+        inset 0 1px 0 rgba(88,166,255,0.04);
+}
+
+/* 位运算 — 紫色系 (SiliconUI 标志色) */
+.grid button.bit {
+    background: #1f142e;
+    color: #d2a8ff;
+    box-shadow:
+        0 3px 0 #110b1a,
+        inset 0 1px 0 rgba(210,168,255,0.08);
+}
+.grid button.bit:hover {
+    background: #2d1f45;
+    box-shadow:
+        0 4px 0 #110b1a,
+        inset 0 1px 0 rgba(210,168,255,0.12);
+}
+.grid button.bit:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #110b1a,
+        inset 0 1px 0 rgba(210,168,255,0.04);
+}
+
+/* 等号 — 紫色主色调 */
+.grid button.eq {
+    background: linear-gradient(180deg, #7c4ad0 0%, #6e40c9 100%);
+    color: #fff;
+    box-shadow:
+        0 3px 0 #3d1f7a,
+        inset 0 1px 0 rgba(255,255,255,0.15);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.grid button.eq:hover {
+    background: linear-gradient(180deg, #8a5ad8 0%, #7c4ad0 100%);
+    box-shadow:
+        0 4px 0 #3d1f7a,
+        inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.grid button.eq:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #3d1f7a,
+        inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* AC — 红色 */
+.grid button.ac {
+    background: #1f0f0e;
+    color: #f85149;
+    box-shadow:
+        0 3px 0 #110808,
+        inset 0 1px 0 rgba(248,81,73,0.08);
+}
+.grid button.ac:hover {
+    background: #2d1816;
+    box-shadow:
+        0 4px 0 #110808,
+        inset 0 1px 0 rgba(248,81,73,0.12);
+}
+.grid button.ac:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #110808;
+}
+
+/* 退格 — 橙色 */
+.grid button.bs {
+    background: #1f180e;
+    color: #f0883e;
+    box-shadow:
+        0 3px 0 #110c06,
+        inset 0 1px 0 rgba(240,136,62,0.08);
+}
+.grid button.bs:hover {
+    background: #2d2216;
+    box-shadow:
+        0 4px 0 #110c06,
+        inset 0 1px 0 rgba(240,136,62,0.12);
+}
+.grid button.bs:active {
+    transform: translateY(2px);
+    box-shadow:
+        0 1px 0 #110c06;
+}
+
+/* 底部键盘提示 */
+.kbd-hint {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 11px;
+    color: #3b4252;
+    letter-spacing: 0.3px;
+}
+.kbd-hint kbd {
+    background: #0d1117;
+    padding: 1px 7px;
+    border-radius: 4px;
+    border: 1px solid #1f2430;
+    font-family: inherit;
+    font-size: 10px;
+    color: #545d6e;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 520px) {
+    .calculator { width: 100%; padding: 16px 12px 20px; }
+    .grid button { padding: 12px 0; font-size: 13px; }
+    .display .value { font-size: 24px; }
+    .disclaimer { font-size: 11px; padding: 6px 14px; white-space: normal; }
+}
+</style>
+</head>
+<body>
+
+<div class="disclaimer">
+    <strong>PyQt-SiliconUI</strong> 概念设计 · 精确模拟 SiliconUI 暗色主题风格
+</div>
+
+<div class="calculator">
+    <!-- Header -->
+    <div class="header">
+        <h1>BitForge <span>· Programmer Calc</span></h1>
+        <span class="badge">SiliconUI</span>
+    </div>
+
+    <!-- 位宽 + 进制 -->
+    <div class="toolbar">
+        <div class="bits-group">
+            <button class="active">32</button>
+            <button>16</button>
+            <button>8</button>
+            <button>64</button>
+        </div>
+        <div class="radix-group">
+            <button>HEX</button>
+            <button class="active">DEC</button>
+            <button>OCT</button>
+            <button>BIN</button>
+        </div>
+    </div>
+
+    <!-- 显示区 -->
+    <div class="display">
+        <div class="value">0xFFA3</div>
+        <div class="bits-row">
+            <span class="bit-group">
+                <span class="on">1</span><span class="on">1</span><span class="on">1</span><span class="on">1</span>
+                <span class="on">1</span><span class="on">1</span><span class="on">1</span><span class="off">0</span>
+            </span>
+            <span class="bit-group">
+                <span class="on">1</span><span class="on">1</span><span class="on">1</span><span class="on">1</span>
+                <span class="off">0</span><span class="off">0</span><span class="off">0</span><span class="off">0</span>
+            </span>
+            <span class="bit-group">
+                <span class="on">1</span><span class="off">0</span><span class="on">1</span><span class="off">0</span>
+                <span class="off">0</span><span class="off">0</span><span class="on">1</span><span class="on">1</span>
+            </span>
+            <span class="bit-group">
+                <span class="off">0</span><span class="off">0</span><span class="off">0</span><span class="off">0</span>
+                <span class="off">0</span><span class="off">0</span><span class="off">0</span><span class="off">0</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- 辅助信息 -->
+    <div class="aux">
+        <div class="item"><span class="lbl">DEC</span><span class="val">65443</span></div>
+        <div class="item"><span class="lbl">HEX</span><span class="val">0xFFA3</span></div>
+        <div class="item"><span class="lbl">OCT</span><span class="val">0o177643</span></div>
+        <div class="item"><span class="lbl">BIN</span><span class="val">0b1111111110100011</span></div>
+    </div>
+
+    <!-- 按钮网格 -->
+    <div class="grid">
+        <button class="ac">AC</button>
+        <button class="bs">⌫</button>
+        <button class="op">%</button>
+        <button class="op">÷</button>
+        <button class="bit">NOT</button>
+
+        <button>7</button>
+        <button>8</button>
+        <button>9</button>
+        <button class="op">×</button>
+        <button class="bit">AND</button>
+
+        <button>4</button>
+        <button>5</button>
+        <button>6</button>
+        <button class="op">−</button>
+        <button class="bit">OR</button>
+
+        <button>1</button>
+        <button>2</button>
+        <button>3</button>
+        <button class="op">+</button>
+        <button class="bit">XOR</button>
+
+        <button>0</button>
+        <button>A</button>
+        <button>B</button>
+        <button class="eq">=</button>
+        <button class="bit">«</button>
+
+        <button>C</button>
+        <button>D</button>
+        <button>E</button>
+        <button>F</button>
+        <button class="bit">»</button>
+    </div>
+
+    <div class="kbd-hint">
+        键盘支持 · <kbd>0-9</kbd> <kbd>A-F</kbd> <kbd>+ - * / %</kbd> <kbd>Enter</kbd> <kbd>←</kbd> <kbd>Esc</kbd>
+    </div>
+</div>
+
+<!-- ===== 底部: 实际 PyQt-SiliconUI 代码预览 ===== -->
+<div style="
+    margin-top: 40px;
+    width: 480px;
+    max-width: 100%;
+    background: #12141a;
+    border-radius: 14px;
+    border: 1px solid #262c38;
+    overflow: hidden;
+">
+    <div style="
+        display: flex;
+        border-bottom: 1px solid #262c38;
+    ">
+        <div style="
+            padding: 10px 18px;
+            background: #1a1f2b;
+            color: #d2a8ff;
+            font-size: 13px;
+            font-weight: 600;
+            border-bottom: 2px solid #6e40c9;
+        ">calculator_pyqt.py</div>
+        <div style="padding: 10px 18px; color: #545d6e; font-size: 13px;">预览核心代码</div>
+    </div>
+    <pre style="
+        padding: 16px 18px;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #b0b8c4;
+        font-family: 'Cascadia Code', 'Consolas', monospace;
+        overflow-x: auto;
+        margin: 0;
+    "><span style="color:#7c7084"># 关键导入 — 只用了 SiliconUI 重构后的组件</span>
+<span style="color:#569cd6">from</span> siui.components.button <span style="color:#569cd6">import</span> SiPushButtonRefactor, SiFlatButton
+<span style="color:#569cd6">from</span> siui.components.label <span style="color:#569cd6">import</span> SiLabelRefactor
+<span style="color:#569cd6">from</span> siui.components.container <span style="color:#569cd6">import</span> SiBoxContainer
+<span style="color:#569cd6">from</span> siui.templates.application <span style="color:#569cd6">import</span> SiliconApplication
+
+<span style="color:#7c7084"># 按钮创建 — 自动获得 SiliconUI 暗色主题 + hover/click 动画</span>
+btn = SiPushButtonRefactor.withText(<span style="color:#ce9178">"AND"</span>, self)
+btn.setStyleData(<span style="color:#ce9178">"button_color"</span>, QColor(<span style="color:#ce9178">"#1f142e"</span>))
+
+<span style="color:#7c7084"># 显示标签 — 圆角背景 + 自定义颜色</span>
+display = SiLabelRefactor(self)
+display.setBorderRadius(14)
+display.setTextColor(<span style="color:#ce9178">"#D1CBD4"</span>)
+display.setBackgroundColor(<span style="color:#ce9178">"#0d1117"</span>)
+
+<span style="color:#7c7084"># 布局容器 — 自带弹性间距</span>
+container = SiBoxContainer(self, SiBoxContainer.TopToBottom)
+container.layout().setSpacing(6)
+
+<span style="color:#7c7084"># 动画 — 按钮按下缩放效果</span>
+<span style="color:#569cd6">self</span>.scale_ani = SiExpAnimationRefactor(btn, <span style="color:#ce9178">"scaleFactor"</span>)
+<span style="color:#569cd6">self</span>.scale_ani.init(<span style="color:#b5cea8">1/16</span>, <span style="color:#b5cea8">0</span>, <span style="color:#b5cea8">1</span>, <span style="color:#b5cea8">0.9</span>)
+
+<span style="color:#7c7084"># 全局样式刷新</span>
+SiGlobal.siui.reloadAllWindowsStyleSheet()</pre>
+</div>
+
+</body>
+</html>
