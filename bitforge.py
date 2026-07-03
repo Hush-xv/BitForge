@@ -6,13 +6,14 @@ BitForge — Programmer Calculator (Fast Edition)
 运行: python bitforge.py
 """
 
+import os
 import sys
 
-from PyQt5.QtCore import Qt, QRectF, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QKeyEvent, QPainter, QPixmap
+from PyQt5.QtCore import Qt, QRectF, QTimer, QEasingCurve, QVariantAnimation, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QIcon, QKeyEvent, QPainter, QPixmap
 from PyQt5.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QMainWindow,
-    QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QApplication, QDialog, QFrame, QHBoxLayout, QMainWindow,
+    QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout, QWidget,
 )
 
 from siui.components.button import SiPushButtonRefactor
@@ -80,12 +81,15 @@ class BFButton(SiPushButtonRefactor):
         "bs":   ("bs_bg","bs_fg"),
     }
     DIMS  = {"d": ("dim_bg","dim_fg")}
+    TIPS = {"AC":"全部清除","⌫":"退格","%":"取模","/":"除以","NOT":"按位取反",
+            "AND":"按位与","OR":"按位或","XOR":"按位异或","<<":"左移",">>":"右移"}
 
     def __init__(self, text, style="d", parent=None):
         super().__init__(parent)
         self._sty = style
         self._k = self.STYLES[style]
         self._dim = False
+        self._tip=self.TIPS.get(text,"")
         self.setText(text)
         from siui.gui import SiFont
         self.setFont(SiFont.getFont(size=15))
@@ -100,7 +104,7 @@ class BFButton(SiPushButtonRefactor):
         sd.button_color = bg; sd.text_color = fg
         sd.background_color = QColor(0, 0, 0, 0)
         sd.border_radius = BR; sd.border_inner_radius = IR; sd.border_height = BH
-        # 增强悬停效果: 浅色按钮深色叠加, 深色按钮(等号)浅色叠加
+        # 增强悬停效果
         if self._dim:
             sd.idle_color = QColor(0, 0, 0, 0)
             sd.hover_color = QColor(0, 0, 0, 20)
@@ -111,6 +115,15 @@ class BFButton(SiPushButtonRefactor):
             sd.idle_color = QColor(0, 0, 0, 0)
             sd.hover_color = QColor(0, 0, 0, 55)
         self.update()
+
+    def enterEvent(self,e):
+        super().enterEvent(e)
+        if self._tip:
+            QToolTip.showText(e.globalPos(),self._tip,self)
+
+    def leaveEvent(self,e):
+        super().leaveEvent(e)
+        QToolTip.hideText()
 
     def set_dimmed(self, d: bool):
         if d != self._dim: self._dim = d; self._paint()
@@ -260,8 +273,23 @@ class BitForge(QMainWindow):
         self.setFocusPolicy(Qt.StrongFocus)
         self._set_style()
         self._v=0; self._d="0"; self._r=10; self._bw=8
-        self._n=True; self._signed=False; self._p=None; self._e=False
+        self._n=True; self._signed=False; self._locked=False; self._p=None; self._e=False
+        self._toast_timer=QTimer(self); self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(lambda: self._hl.setText("KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc"))
+        self._v_ani=QVariantAnimation(self)
+        self._v_ani.setDuration(120)
+        self._v_ani.setEasingCurve(QEasingCurve.OutCubic)
+        self._v_ani.valueChanged.connect(self._ani_set_text)
+        self._ani_old=""
         self._b(); self._rnd()
+
+    def _ani_set_text(self,val):
+        self._dl.setText(f"{val:.0f}")
+        if val>=0: self._dl.setTextColor(C["dsp_fg"])
+
+    def _toast(self,msg):
+        self._hl.setText(msg)
+        self._toast_timer.start(2000)
 
     # ===== 窗口样式 =====
     def _set_style(self):
@@ -282,6 +310,8 @@ class BitForge(QMainWindow):
         hl.addWidget(self._tl); hl.addStretch()
         self._vl=SiLabelRefactor(self); self._vl.setText(self.VER)
         self._vl.setFont(SiFont.getFont(size=10)); self._vl.setTextColor(C["ver"]); hl.addWidget(self._vl)
+        self._vl.setCursor(Qt.PointingHandCursor)
+        self._vl.mouseReleaseEvent = lambda e: self._show_about() if e.button()==Qt.LeftButton else None
         v.addWidget(h)
 
         # 进制栏
@@ -303,18 +333,24 @@ class BitForge(QMainWindow):
         self._sign_btn.setStyleSheet(self._sign_style(False))
         self._sign_btn.clicked.connect(self._toggle_sign)
         tbl.addWidget(self._sign_btn)
+        self._lock_btn=QPushButton("\U0001f512")
+        self._lock_btn.setFont(self._mf(10))
+        self._lock_btn.setFixedSize(28,24)
+        self._lock_btn.setCheckable(True)
+        self._lock_btn.setToolTip("锁定当前位宽")
+        self._lock_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;font-size:12px;}}QPushButton:hover{{color:{C['title']};}}QPushButton:checked{{color:{C['rad_on']};}}")
+        self._lock_btn.clicked.connect(self._toggle_lock)
+        tbl.addWidget(self._lock_btn)
         self._bw_lb=QLabel("8b")
         self._bw_lb.setFont(self._mf(9))
         self._bw_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
         self._bw_lb.setAlignment(Qt.AlignCenter)
         tbl.addWidget(self._bw_lb)
-        self._mask_le=QLineEdit("")
-        self._mask_le.setPlaceholderText("Msk")
-        self._mask_le.setFont(self._mf(9))
+        from siui.components.widgets.line_edit import SiLineEdit
+        self._mask_le=SiLineEdit(self)
+        self._mask_le.lineEdit().setPlaceholderText("Msk")
         self._mask_le.setFixedWidth(80)
-        self._mask_le.setFixedHeight(24)
-        self._mask_le.setStyleSheet(f"background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:5px;padding:0 4px;color:{C['aux_fg']};")
-        self._mask_le.textChanged.connect(self._on_mask_changed)
+        self._mask_le.lineEdit().textChanged.connect(self._on_mask_changed)
         tbl.addWidget(self._mask_le)
         v.addWidget(tb)
 
@@ -412,6 +448,34 @@ class BitForge(QMainWindow):
         self._sign_btn.setChecked(self._signed)
         self._sign_btn.setStyleSheet(self._sign_style(self._signed))
         self._rnd()
+        self._toast("有符号" if self._signed else "无符号")
+
+    def _toggle_lock(self):
+        self._locked=self._lock_btn.isChecked()
+        self._lock_btn.setToolTip("位宽已锁定" if self._locked else "锁定当前位宽")
+        self._toast("位宽已锁定" if self._locked else "位宽自动")
+
+    def _show_about(self):
+        d=QDialog(self)
+        d.setWindowTitle("关于 BitForge")
+        d.setFixedSize(380,280)
+        d.setStyleSheet(f"QDialog{{background:{C['dsp_bg']}}}")
+        l=QVBoxLayout(d); l.setContentsMargins(24,20,24,20)
+        ti=QLabel("<b style='font-size:20px;color:#6e40c9;'>BitForge</b>")
+        ti.setAlignment(Qt.AlignCenter)
+        l.addWidget(ti)
+        vl=QLabel(f"v{self.VER}" if not self.VER.startswith("v") else self.VER)
+        vl.setAlignment(Qt.AlignCenter); vl.setStyleSheet(f"font-size:13px;color:{C['sub']};margin-bottom:8px;")
+        l.addWidget(vl)
+        for t in ["Programmer Calculator",""]:
+            lb=QLabel(t); lb.setAlignment(Qt.AlignCenter); lb.setStyleSheet(f"font-size:12px;color:{C['sub']};")
+            l.addWidget(lb)
+        gl=QLabel("<a href='#' style='color:#6e40c9;font-size:13px;text-decoration:none;'>github.com/Hush-xv/BitForge</a>")
+        gl.setAlignment(Qt.AlignCenter); gl.setCursor(Qt.PointingHandCursor)
+        gl.linkActivated.connect(lambda: __import__('webbrowser').open("https://github.com/Hush-xv/BitForge"))
+        l.addWidget(gl); l.addStretch()
+        l.addWidget(QLabel("Built with PyQt5 + SiliconUI",alignment=Qt.AlignCenter,styleSheet=f"font-size:11px;color:{C['hint']};"))
+        d.exec_()
 
     @staticmethod
     def _sign_style(on):
@@ -494,6 +558,7 @@ class BitForge(QMainWindow):
         return str(to_signed(u,self._bw))
 
     def _calc_bw(self,v):
+        if self._locked: return self._bw
         if self._signed and v<0:
             for b in (8,16,32,64):
                 if v >= -(1<<(b-1)):
@@ -507,11 +572,22 @@ class BitForge(QMainWindow):
 
     def _rnd(self):
         if self._e: return
-        self._bw=max(self._bw,self._calc_bw(self._v)); u=clamp(self._v,self._bw); t=self._fmt(self._v)
+        self._bw=self._calc_bw(self._v); u=clamp(self._v,self._bw); t=self._fmt(self._v)
         if self._r==16: t="0x"+t
         elif self._r==8: t="0o"+t
         elif self._r==2: t="0b"+t
         elif not self._signed: t=str(u)  # DEC 无符号
+        # 数值滚动动画 (仅 DEC)
+        if self._r==10 and t!=self._ani_old:
+            try:
+                ov=int(self._ani_old); nv=int(t)
+                if abs(nv-ov)>=6 and abs(nv-ov)<50000:
+                    self._v_ani.stop()
+                    self._v_ani.setStartValue(float(ov))
+                    self._v_ani.setEndValue(float(nv))
+                    self._v_ani.start()
+            except: pass
+        self._ani_old=t
         self._dl.setText(t)
         s=to_signed(u,self._bw)
         self._dl.setTextColor(C["dsp_neg"] if (s<0 and self._r==10 and self._signed) else C["dsp_fg"])
@@ -559,6 +635,8 @@ class BitForge(QMainWindow):
 # =====================================================================
 def main():
     app=QApplication(sys.argv); app.setApplicationName("BitForge")
+    ico=os.path.join(os.path.dirname(__file__),"bitforge.ico")
+    if os.path.exists(ico): app.setWindowIcon(QIcon(ico))
     w=BitForge(); w.show()
     # 立即释放图标包内存 (~50MB, 5410 个 SVG)
     from siui.core import SiGlobal
