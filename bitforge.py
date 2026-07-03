@@ -274,6 +274,7 @@ class BitForge(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{self.APP} · Programmer Calculator")
+        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__),"bitforge.ico")))
         self.setMinimumSize(540, 660); self.resize(560, 700)
         self.setFocusPolicy(Qt.StrongFocus)
         self._set_style()
@@ -680,9 +681,10 @@ class BitForge(QMainWindow):
 # =====================================================================
 def main():
     app=QApplication(sys.argv); app.setApplicationName("BitForge")
-    ico=os.path.join(os.path.dirname(__file__),"bitforge.ico")
-    if os.path.exists(ico): app.setWindowIcon(QIcon(ico))
     w=BitForge(); w.show()
+    # 确保应用图标
+    ico=QIcon(os.path.join(os.path.dirname(__file__),"bitforge.ico"))
+    app.setWindowIcon(ico)
     # 立即释放图标包内存 (~50MB, 5410 个 SVG)
     from siui.core import SiGlobal
     if hasattr(SiGlobal.siui,'iconpack') and hasattr(SiGlobal.siui.iconpack,'clear'):
