@@ -540,7 +540,7 @@ class BitForge(QMainWindow):
         self._rnd()
 
     def _ac(self):
-        self._v=0; self._d="0"; self._p=None; self._n=True; self._bw=8; self._locked=False; self._lock_btn.setChecked(False); self._e=False; self._rnd()
+        self._v=0; self._d="0"; self._p=None; self._n=True; self._bw=8; self._locked=False; self._lock_btn.setChecked(False); self._e=False; self._v_ani.stop(); self._ani_running=False; self._ani_old=""; self._rnd()
 
     def _bs(self):
         if self._e: self._ac(); return
