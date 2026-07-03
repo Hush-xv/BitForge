@@ -1,15 +1,16 @@
 # BitForge
 
 <p align="center">
-  <code style="font-size:48px;font-weight:bold;color:#d2a8ff">⌨️ BitForge</code>
+  <code style="font-size:48px;font-weight:bold;color:#6e40c9">🔧 BitForge</code>
 </p>
 <p align="center">
-  <b>BitForge</b> — A sleek programmer calculator built with PyQt5 + SiliconUI.<br>
-  一款精致的程序员计算器，基于 PyQt5 + SiliconUI 构建。
+  <b>BitForge</b> — A programmer calculator for embedded engineers.<br>
+  一款面向嵌入式工程师的程序员计算器，基于 PyQt5 + SiliconUI。
 </p>
+
 <p align="center">
   <a href="#features">Features</a> ·
-  <a href="#installation">Install</a> ·
+  <a href="#quick-start">Quick Start</a> ·
   <a href="#keyboard">Shortcuts</a> ·
   <a href="#build">Build</a> ·
   <a href="#license">License</a>
@@ -22,70 +23,75 @@
 | Feature | Description |
 |---------|-------------|
 | 🧮 **Arithmetic** | `+` `−` `×` `/` `%` with integer division |
-| 🔢 **Radix Switch** | DEC / HEX / OCT — digit keys auto-adapt |
-| 👁️ **Live Preview** | All radices displayed simultaneously (DEC · HEX · OCT) |
-| 💡 **Bit Indicator** | Binary bits grouped by byte, with purple radial glow |
-| 🎨 **Dual Theme** | Dark / Light theme with data-driven color system |
-| ⚙️ **Settings** | QMenu-based settings panel (theme toggle + version info) |
+| 🔢 **Radix Switch** | HEX / DEC / OCT / BIN — input in any base |
+| 📐 **Auto Bit-Width** | 8/16/32/64 bit auto-range, increases only, AC to reset |
+| 🔟 **Multi-Radix Display** | All 4 bases shown simultaneously (2×2 layout) |
+| 💡 **Bit Indicator** | Bit-level visualization with numbered positions |
+| 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 |
+| ↔️ **64-bit Dual Row** | 64-bit splits into two 32-bit rows (63–32 / 31–0) |
+| ± **Signed/Unsigned** | Toggle signed interpretation of DEC values |
+| 🎨 **Light Theme** | Clean, bright interface — no theme switching |
 | ⌨️ **Full Keyboard** | All operations accessible via keyboard |
-| 🎬 **Animations** | SiliconUI hover highlight + press-scale rebound |
-| 🏷️ **Icons** | Fluent UI SVG icons (5,400+ available) |
+| ⚡ **Fast Rendering** | QPixmap cache eliminates mouse-over lag |
+| 🚀 **Quick Startup** | Delayed imports + immediate icon release |
 
 ---
 
 ## Screenshots / 截图
 
-> *Run `python bitforge.py` to see it live.*
-
 ```
-┌──────────────────────────────────────┐
-│ ⌨️ BitForge  Programmer      ⚙ v1.3 │
-│ ┌──────────────────────────────────┐ │
-│ │  0xFF                         255│ │
-│ │  11111111 00000000 00000000 ...  │ │
-│ └──────────────────────────────────┘ │
-│  DEC  255 │ HEX  0xFF │ OCT  0o377  │
-│ ┌────┬────┬────┬────┬────┐         │
-│ │ AC │ ⌫  │ %  │ /  │NOT │         │
-│ │ 7  │ 8  │ 9  │ *  │AND │         │
-│ │ 4  │ 5  │ 6  │ -  │ OR │         │
-│ │ 1  │ 2  │ 3  │ +  │XOR │         │
-│ │ 0  │ A  │ B  │ =  │ << │         │
-│ │ C  │ D  │ E  │ F  │ >> │         │
-│ └────┴────┴────┴────┴────┘         │
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ 🔧 BitForge  Programmer          v1.0.1 │
+│ [HEX] [DEC] [OCT] [BIN]          [±] 32b│
+│ ┌──────────────────────────────────────┐│
+│ │                           0xDEADBEEF ││
+│ └──────────────────────────────────────┘│
+│ 63  62  ...         33  32             │
+│ [ ][ ]...[ ][ ]          ← upper 32bit │
+│ ─────────────────────────────────────── │
+│ 31  30  ...          1   0             │
+│ [ ][ ]...[ ][ ]          ← lower 32bit │
+│                                        │
+│ DEC  3735928559    HEX  0xDEADBEEF     │
+│ OCT  0o33653337357 BIN  0b11011110...  │
+│ ┌────┬────┬────┬────┬────┐             │
+│ │ AC │ ⌫  │ %  │ /  │NOT │             │
+│ │ 7  │ 8  │ 9  │ *  │AND │             │
+│ │ 4  │ 5  │ 6  │ -  │ OR │             │
+│ │ 1  │ 2  │ 3  │ +  │XOR │             │
+│ │ 0  │ A  │ B  │ =  │ << │             │
+│ │ C  │ D  │ E  │ F  │ >> │             │
+│ └────┴────┴────┴────┴────┘             │
+└──────────────────────────────────────────┘
 ```
 
 ---
 
-## Installation / 安装
+## Quick Start / 快速开始
 
-### Option 1: Pre-built EXE (Windows)
-
-Download `BitForge.exe` from [Releases](https://github.com/Hush-xv/BitForge/releases) and run — **no Python required**.
-
-### Option 2: Run from source
+### Run from source (no install required)
 
 ```bash
-# 1. Install PyQt5
-pip install PyQt5 numpy typing_extensions
-
-# 2. Install SiliconUI framework
-git clone https://github.com/ChinaIceF/PyQt-SiliconUI.git
-cd PyQt-SiliconUI
-python setup.py install
-
-# 3. Run BitForge
-cd examples/BitForge
 python bitforge.py
 ```
 
-**Requirements:**
+Or double-click `run.bat` on Windows.
+
+### Pre-built EXE
+
+Download the latest release from [Releases](https://github.com/Hush-xv/BitForge/releases) — **no Python required**.
+
+### Requirements
+
 - Python 3.8+
 - PyQt5 ≥ 5.15
-- SiliconUI ≥ 1.0
-- numpy
-- typing_extensions
+- SiliconUI ≥ 1.0 (from [PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI))
+
+```bash
+pip install PyQt5 numpy typing_extensions
+git clone https://github.com/ChinaIceF/PyQt-SiliconUI.git
+cd PyQt-SiliconUI && python setup.py install
+```
 
 ---
 
@@ -104,18 +110,16 @@ python bitforge.py
 
 ---
 
-## Build from Source / 从源码构建
+## Build / 打包
 
 ```bash
-# Generate standalone EXE
+pip install pyinstaller
+
+# Directory mode (fast startup) — output: dist/BitForge/
 python build.py
-```
 
-This uses **PyInstaller** to produce a single `dist/BitForge.exe` (~76 MB, self-contained).
-
-```bash
-pip install pyinstaller   # one-time setup
-python build.py           # produces dist/BitForge.exe
+# Single-file mode (portable) — output: dist/BitForge.exe
+python build.py --portable
 ```
 
 ---
@@ -124,12 +128,14 @@ python build.py           # produces dist/BitForge.exe
 
 ```
 BitForge/
-├── bitforge.py          # Main application (~480 lines)
-├── build.py             # PyInstaller packaging script
-├── concept.html          # Static design mockup (SiliconUI style)
-├── dist/
-│   └── BitForge.exe      # Standalone executable
-└── README.md
+├── bitforge.py       # Main application (~540 lines)
+├── build.py          # PyInstaller packaging script
+├── bitforge.ico      # Application icon (256×256)
+├── run.bat           # Quick-launch script
+├── README.md
+└── dist/
+    └── BitForge/     # Standalone distribution
+        └── BitForge.exe
 ```
 
 ---
@@ -139,19 +145,9 @@ BitForge/
 | Layer | Technology |
 |-------|-----------|
 | **UI Framework** | [PyQt5](https://pypi.org/project/PyQt5/) |
-| **Component Library** | [PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI) |
-| **Icons** | Fluent UI System Icons (5,400+ SVG) |
-| **Animation** | `SiExpAnimationRefactor` — exponential easing |
-| **Packaging** | PyInstaller (single-file EXE) |
-| **Theme System** | Data-driven `AppTheme` dict (30+ color tokens) |
-
----
-
-## Vibe Coding
-
-This entire project — from the first line of code to the final EXE, from concept design to GitHub deployment — was created entirely through **vibe coding**: conversational AI-assisted development where every feature, fix, and optimization was specified in natural language and implemented collaboratively with AI. No traditional IDE, no manual code editing, no build scripts written by hand. Just prompts, iterations, and the occasional "it crashes when I click this button."
-
-> *"Vibe coding" — a term popularized by Andrej Karpathy, describing the experience of building software through AI pair programming, where you describe what you want in plain language and the AI writes the code.*
+| **Widget Library** | [PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI) |
+| **Packaging** | PyInstaller (onedir / onefile) |
+| **Theme** | Hardcoded light theme (30+ color tokens) |
 
 ---
 
@@ -165,16 +161,11 @@ Copyright (C) 2025 Hush-xv
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
 ```
 
 ---
 
 ## Acknowledgments / 致谢
 
-- [ChinaIceF/PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI) — The elegant PyQt5 UI framework powering BitForge's visuals
-- [Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) — 5,400+ SVG icons used throughout the interface
+- [ChinaIceF/PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI) — The elegant PyQt5 UI framework
+- Built via [vibe coding](https://github.com/Hush-xv/BitForge) — conversational AI-assisted development

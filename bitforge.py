@@ -246,7 +246,7 @@ class BitGlow(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.5-preview"
+    APP = "BitForge"; VER = "v1.0.1"
 
     def __init__(self):
         super().__init__()
