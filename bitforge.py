@@ -9,10 +9,10 @@ BitForge — Programmer Calculator (Fast Edition)
 import sys
 
 from PyQt5.QtCore import Qt, QRectF, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QKeyEvent, QPainter, QPixmap, QRadialGradient
+from PyQt5.QtGui import QColor, QFont, QKeyEvent, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QMainWindow,
-    QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from siui.components.button import SiPushButtonRefactor
@@ -63,7 +63,6 @@ C = {
     "bs_fg":   "#c06020",
     "bit_on":  "#8040c0",
     "bit_off": "#a8acb8",
-    "glow":    QColor(140, 80, 200, 50),
 }
 BH = 2    # border_height
 BR = 9    # border_radius
@@ -130,13 +129,17 @@ class BitGlow(QWidget):
         super().__init__(parent)
         self._v=0; self._b=32; self.setFixedHeight(46)
         self._cache=None; self._bw_cache=None; self._dirty=True
-        self._font=QFont("Consolas",9)
+        self._font=QFont("Consolas",9); self._mask=0
 
     def set_val(self,v,b):
         if self._v==v and self._b==b: return
         self._v=v; self._b=b
         self.setFixedHeight(82 if b>32 else 46)
         self._dirty=True; self.update()
+
+    def set_mask(self,m):
+        if self._mask==m: return
+        self._mask=m; self._dirty=True; self.update()
 
     def resizeEvent(self,e):
         self._dirty=True; super().resizeEvent(e)
@@ -196,16 +199,17 @@ class BitGlow(QWidget):
                     for ch in g:
                         r=QRectF(x,y_off+10,bw,bh); txt=f"{bit_idx:>2d}"
                         if ch=="1":
-                            gl=QRadialGradient(r.center().x(),r.center().y(),bw*1.1)
-                            gl.setColorAt(0,C["glow"]); gl.setColorAt(0.5,QColor(200,150,240,20))
-                            gl.setColorAt(1,Qt.transparent)
-                            p.setBrush(gl); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r.adjusted(-3,-3,3,3),5,5)
+                            # 外层光晕 (纯色半透明，无渐变)
+                            p.setBrush(QColor(140,80,200,40)); p.setPen(Qt.NoPen)
+                            p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
                             p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                             p.drawRoundedRect(r,3,3)
                             p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
                         else:
                             p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
+                        if self._mask and (self._mask>>bit_idx)&1:
+                            p.setPen(QColor("#e09030")); p.setBrush(Qt.NoBrush)
+                            p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
                         x+=bw+gap; bit_idx-=1
                     x+=ggap-gap
             # 分隔线 + 位范围标注 (置于分隔线下方空隙)
@@ -227,16 +231,17 @@ class BitGlow(QWidget):
                 for ch in g:
                     txt=f"{bit_idx:>2d}"; r=QRectF(x,y+2,bw,h-18)
                     if ch=="1":
-                        gl=QRadialGradient(r.center().x(),r.center().y(),bw*1.1)
-                        gl.setColorAt(0,C["glow"]); gl.setColorAt(0.5,QColor(200,150,240,20))
-                        gl.setColorAt(1,Qt.transparent)
-                        p.setBrush(gl); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r.adjusted(-3,-3,3,3),5,5)
+                        # 外层光晕 (纯色半透明，无渐变)
+                        p.setBrush(QColor(140,80,200,40)); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
                         p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                         p.drawRoundedRect(r,3,3)
                         p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
                     else:
                         p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
+                    if self._mask and (self._mask>>bit_idx)&1:
+                        p.setPen(QColor("#e09030")); p.setBrush(Qt.NoBrush)
+                        p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
                     x+=bw+gap; bit_idx-=1
                 x+=ggap-gap
         p.setFont(self._font); p.end(); self._dirty=False
@@ -303,6 +308,14 @@ class BitForge(QMainWindow):
         self._bw_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
         self._bw_lb.setAlignment(Qt.AlignCenter)
         tbl.addWidget(self._bw_lb)
+        self._mask_le=QLineEdit("")
+        self._mask_le.setPlaceholderText("Msk")
+        self._mask_le.setFont(self._mf(9))
+        self._mask_le.setFixedWidth(80)
+        self._mask_le.setFixedHeight(24)
+        self._mask_le.setStyleSheet(f"background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:5px;padding:0 4px;color:{C['aux_fg']};")
+        self._mask_le.textChanged.connect(self._on_mask_changed)
+        tbl.addWidget(self._mask_le)
         v.addWidget(tb)
 
         # 显示
@@ -512,6 +525,16 @@ class BitForge(QMainWindow):
         if self._e: self._e=False
         self._v=clamp(v,64); self._d=self._fmt(self._v); self._p=None
         self._rnd()
+
+    def _on_mask_changed(self,text):
+        if not text.strip():
+            self._bi.set_mask(0)
+            return
+        try:
+            m=int(text,16) if text.startswith("0x") or text.startswith("0X") else int(text,10)
+            self._bi.set_mask(clamp(m,64))
+        except ValueError:
+            pass
 
     # ===== 键盘 =====
     def keyPressEvent(self,e:QKeyEvent):
