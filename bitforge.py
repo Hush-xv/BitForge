@@ -158,10 +158,12 @@ class BitGlow(QWidget):
         self._dirty=True; super().resizeEvent(e)
 
     def mouseReleaseEvent(self,e):
-        if e.button()!=Qt.LeftButton: return
-        x,y=e.x(),e.y(); bw=self._bw_cache
-        if bw is None: return
-        m=self.M; gap=self.GAP; ggap=self.GGAP
+        x,y=e.x(),e.y()
+        w=max(self.width(),1); m=self.M; gap=self.GAP; ggap=self.GGAP
+        cols=32 if self._b>32 else self._b
+        grps=cols//8; tw=w-2*m
+        bw=(tw-(grps-1)*ggap-(cols-grps)*gap)/cols; bw=max(bw,7)
+        self._bw_cache=bw
 
         if self._b>32:
             mid=self.height()//2
@@ -183,7 +185,10 @@ class BitGlow(QWidget):
         bi=min(int(inner_x//(bw+gap)),7)
         bit_pos=(self._b-1 if self._b<=32 else 31)-(gi*8+bi)+bit_off
         if bit_pos<0 or bit_pos>=self._b: return
-        self.valueChanged.emit(self._v^(1<<bit_pos))
+        if e.button()==Qt.RightButton:
+            self.valueChanged.emit(self._v & ~(1<<bit_pos))
+        else:
+            self.valueChanged.emit(self._v ^ (1<<bit_pos))
 
     def paintEvent(self,e):
         if self._dirty or self._cache is None:
@@ -280,11 +285,13 @@ class BitForge(QMainWindow):
         self._v_ani.setDuration(120)
         self._v_ani.setEasingCurve(QEasingCurve.OutCubic)
         self._v_ani.valueChanged.connect(self._ani_set_text)
-        self._ani_old=""
+        self._ani_old=""; self._ani_running=False
+        self._v_ani.finished.connect(lambda: setattr(self,'_ani_running',False))
         self._b(); self._rnd()
 
     def _ani_set_text(self,val):
         self._dl.setText(f"{val:.0f}")
+        self._ani_running=True
         if val>=0: self._dl.setTextColor(C["dsp_fg"])
 
     def _toast(self,msg):
@@ -341,6 +348,18 @@ class BitForge(QMainWindow):
         self._lock_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;font-size:12px;}}QPushButton:hover{{color:{C['title']};}}QPushButton:checked{{color:{C['rad_on']};}}")
         self._lock_btn.clicked.connect(self._toggle_lock)
         tbl.addWidget(self._lock_btn)
+        self._bw_up=QPushButton("+")
+        self._bw_up.setFont(self._mf(12))
+        self._bw_up.setFixedSize(22,24)
+        self._bw_up.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;}}QPushButton:hover{{color:{C['title']};}}")
+        self._bw_up.clicked.connect(self._step_bw_up)
+        tbl.addWidget(self._bw_up)
+        self._bw_dn=QPushButton("\u2212")
+        self._bw_dn.setFont(self._mf(12))
+        self._bw_dn.setFixedSize(22,24)
+        self._bw_dn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;}}QPushButton:hover{{color:{C['title']};}}")
+        self._bw_dn.clicked.connect(self._step_bw_dn)
+        tbl.addWidget(self._bw_dn)
         self._bw_lb=QLabel("8b")
         self._bw_lb.setFont(self._mf(9))
         self._bw_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
@@ -455,6 +474,20 @@ class BitForge(QMainWindow):
         self._lock_btn.setToolTip("位宽已锁定" if self._locked else "锁定当前位宽")
         self._toast("位宽已锁定" if self._locked else "位宽自动")
 
+    def _step_bw_up(self):
+        for b in (16,32,64):
+            if self._bw<b:
+                self._bw=b; self._locked=True; self._lock_btn.setChecked(True)
+                self._lock_btn.setToolTip("位宽已锁定")
+                self._rnd(); self._toast(f"位宽 {b}b"); return
+
+    def _step_bw_dn(self):
+        for b in (32,16,8):
+            if self._bw>b:
+                self._bw=b; self._locked=True; self._lock_btn.setChecked(True)
+                self._lock_btn.setToolTip("位宽已锁定")
+                self._rnd(); self._toast(f"位宽 {b}b"); return
+
     def _show_about(self):
         d=QDialog(self)
         d.setWindowTitle("关于 BitForge")
@@ -503,7 +536,7 @@ class BitForge(QMainWindow):
         self._rnd()
 
     def _ac(self):
-        self._v=0; self._d="0"; self._p=None; self._n=True; self._bw=8; self._e=False; self._rnd()
+        self._v=0; self._d="0"; self._p=None; self._n=True; self._bw=8; self._locked=False; self._lock_btn.setChecked(False); self._e=False; self._rnd()
 
     def _bs(self):
         if self._e: self._ac(); return
@@ -577,18 +610,19 @@ class BitForge(QMainWindow):
         elif self._r==8: t="0o"+t
         elif self._r==2: t="0b"+t
         elif not self._signed: t=str(u)  # DEC 无符号
-        # 数值滚动动画 (仅 DEC)
-        if self._r==10 and t!=self._ani_old:
+        # 数值滚动动画 (仅 DEC、操作结果、值变幅 > 9)
+        if self._r==10 and self._n and t!=self._ani_old:
             try:
                 ov=int(self._ani_old); nv=int(t)
-                if abs(nv-ov)>=6 and abs(nv-ov)<50000:
+                if abs(nv-ov)>=10 and abs(nv-ov)<50000:
                     self._v_ani.stop()
                     self._v_ani.setStartValue(float(ov))
                     self._v_ani.setEndValue(float(nv))
                     self._v_ani.start()
             except: pass
         self._ani_old=t
-        self._dl.setText(t)
+        if not self._ani_running:
+            self._dl.setText(t)
         s=to_signed(u,self._bw)
         self._dl.setTextColor(C["dsp_neg"] if (s<0 and self._r==10 and self._signed) else C["dsp_fg"])
         self._bi.set_val(self._v,self._bw)
