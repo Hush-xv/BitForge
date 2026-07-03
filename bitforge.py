@@ -269,7 +269,7 @@ class BitGlow(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.0.1"
+    APP = "BitForge"; VER = "v1.1.0"
 
     def __init__(self):
         super().__init__()
@@ -472,6 +472,10 @@ class BitForge(QMainWindow):
     def _toggle_lock(self):
         self._locked=self._lock_btn.isChecked()
         self._lock_btn.setToolTip("位宽已锁定" if self._locked else "锁定当前位宽")
+        if self._locked:
+            self._lock_btn.setStyleSheet(f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;border-radius:5px;font-size:12px;}}")
+        else:
+            self._lock_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;font-size:12px;}}QPushButton:hover{{color:{C['title']};}}QPushButton:checked{{color:{C['rad_on']};}}")
         self._toast("位宽已锁定" if self._locked else "位宽自动")
 
     def _step_bw_up(self):
@@ -627,6 +631,13 @@ class BitForge(QMainWindow):
         self._dl.setTextColor(C["dsp_neg"] if (s<0 and self._r==10 and self._signed) else C["dsp_fg"])
         self._bi.set_val(self._v,self._bw)
         self._bw_lb.setText(f"{self._bw}b")
+        self._bw_lb.setStyleSheet(f"color:{C['rad_on'] if self._locked else C['sub']};padding:0 6px 0 2px;")
+        if self._locked!=self._lock_btn.isChecked():
+            self._lock_btn.setChecked(self._locked)
+            if self._locked:
+                self._lock_btn.setStyleSheet(f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;border-radius:5px;font-size:12px;}}")
+            else:
+                self._lock_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;font-size:12px;}}QPushButton:hover{{color:{C['title']};}}")
         dec_v=s if self._signed else u
         self._ax["DEC"].setText(f"<span style='color:{C['sub']}'>DEC</span>  <span style='color:{C['dsp_fg']}'>{dec_v}</span>")
         self._ax["HEX"].setText(f"<span style='color:{C['sub']}'>HEX</span>  <span style='color:{C['dsp_fg']}'>0x{format(u,'X')}</span>")
