@@ -17,6 +17,9 @@ dist/
 *.swp
 *.swo
 
+# Agent metadata
+.reasonix/
+
 # OS
 .DS_Store
 Thumbs.db

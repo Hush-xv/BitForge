@@ -1,30 +1,27 @@
 """
-BitForge v1.2 — Programmer Calculator
-======================================
-基于 PyQt5 + SiliconUI。
-暗色/亮色主题 · 高对比度显示 · QMenu 设置 · Fluent UI 图标
+BitForge — Programmer Calculator (Fast Edition)
+================================================
+基于 PyQt5 + SiliconUI · 亮色主题 · 无主题切换 · 无图标加载
 
 运行: python bitforge.py
 """
 
 import sys
-from PyQt5.QtCore import Qt, QRectF, QPoint
-from PyQt5.QtGui import (
-    QColor, QFont, QKeyEvent, QPainter, QRadialGradient,
-    QPixmap,
-)
+
+from PyQt5.QtCore import Qt, QRectF, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QKeyEvent, QPainter, QPixmap, QRadialGradient
 from PyQt5.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QMainWindow,
-    QMenu, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
-from PyQt5.QtSvg import QSvgRenderer
 
 from siui.components.button import SiPushButtonRefactor
-from siui.components.label import SiLabelRefactor
-from siui.core import SiGlobal
 from siui.gui import SiFont
 
 # =====================================================================
+#  数学工具
+# =====================================================================
+ALL_DIGITS = "0123456789ABCDEF"
 BIT_MASKS = {8: 0xFF, 16: 0xFFFF, 32: 0xFFFFFFFF, 64: (1 << 64) - 1}
 def clamp(v, b): return v & BIT_MASKS[b] if b != 64 else v & BIT_MASKS[64]
 def to_signed(v, b):
@@ -33,514 +30,514 @@ def to_signed(v, b):
     h = 1 << (b - 1); return u - (1 << b) if u >= h else u
 
 # =====================================================================
-#  主题系统 — 暗色文字全面提亮到 #FFFFFF 级别
+#  亮色主题配色 (单主题，无切换)
 # =====================================================================
-class AppTheme:
-    DARK = {
-        "name": "Dark",
-        "window_bg":      "#0e1117",
-        "display_bg":     "#10141c",
-        "display_text":   "#FFFFFF",
-        "display_neg":    "#ff6b6b",
-        "aux_bg":         "#10141c",
-        "aux_text":       "#d4d8e0",
-        "title_text":     "#e8ecf2",
-        "title_sub":      "#808898",
-        "ver_text":       "#505868",
-        "hint_text":      "#3b4252",
-        "toolbar_bg":     "#0d1117",
-        "toolbar_border": "#1f2430",
-        "toggle_on_bw":   "#282c38",
-        "toggle_bw_text": "#d8dce4",
-        "toggle_dim":     "#686e7a",
-        "toggle_rad_on":  "#6e40c9",
-        "toggle_rad_text":"#ffffff",
-        "digit_bg":       "#232834",
-        "digit_fg":       "#FFFFFF",
-        "digit_dim_bg":   "#161920",
-        "digit_dim_fg":   "#383c48",
-        "op_bg":          "#0a1428",
-        "op_fg":          "#80c0ff",
-        "bit_bg":         "#1a142e",
-        "bit_fg":         "#e0c0ff",
-        "eq_bg":          "#6e40c9",
-        "eq_fg":          "#ffffff",
-        "ac_bg":          "#1c0e0d",
-        "ac_fg":          "#ff8080",
-        "bs_bg":          "#1c160e",
-        "bs_fg":          "#f0b060",
-        "func_bg":        "#0d1e1b",
-        "func_fg":        "#60e090",
-        "bit_on":         "#d090f0",
-        "bit_off":        "#1e1c25",
-        "bit_glow":       QColor(210, 150, 240, 75),
-        "menu_bg":        "#191d28",
-        "menu_border":    "#2a3040",
-        "menu_text":      "#d8dce4",
-        "menu_dim":       "#687080",
-        "menu_acc":       "#90b0ff",
-        "btn_h":          3,
-        "btn_r":          10,
-        "btn_ir":         8,
-    }
-    BRIGHT = {
-        "name": "Light",
-        "window_bg":      "#f0f2f5",
-        "display_bg":     "#ffffff",
-        "display_text":   "#101216",
-        "display_neg":    "#d01020",
-        "aux_bg":         "#f6f7fa",
-        "aux_text":       "#3a3d48",
-        "title_text":     "#181a20",
-        "title_sub":      "#687080",
-        "ver_text":       "#a0a8b8",
-        "hint_text":      "#98a0b0",
-        "toolbar_bg":     "#ffffff",
-        "toolbar_border": "#d8dce4",
-        "toggle_on_bw":   "#e4e8f0",
-        "toggle_bw_text": "#282c38",
-        "toggle_dim":     "#8890a0",
-        "toggle_rad_on":  "#6e40c9",
-        "toggle_rad_text":"#ffffff",
-        "digit_bg":       "#e8ecf2",
-        "digit_fg":       "#181a20",
-        "digit_dim_bg":   "#ccd0d8",
-        "digit_dim_fg":   "#a0a4ae",
-        "op_bg":          "#dce8ff",
-        "op_fg":          "#2050b0",
-        "bit_bg":         "#efe8ff",
-        "bit_fg":         "#6020a0",
-        "eq_bg":          "#6838c8",
-        "eq_fg":          "#ffffff",
-        "ac_bg":          "#ffe8e6",
-        "ac_fg":          "#c02030",
-        "bs_bg":          "#fff0e0",
-        "bs_fg":          "#c06020",
-        "func_bg":        "#e0ffe8",
-        "func_fg":        "#108030",
-        "bit_on":         "#8040c0",
-        "bit_off":        "#d0d4dc",
-        "bit_glow":       QColor(140, 80, 200, 50),
-        "menu_bg":        "#ffffff",
-        "menu_border":    "#d4d8e0",
-        "menu_text":      "#282c38",
-        "menu_dim":       "#98a0b0",
-        "menu_acc":       "#4058d0",
-        "btn_h":          2,
-        "btn_r":          9,
-        "btn_ir":         7,
-    }
+C = {
+    "win":     "#f0f2f5",  # 窗口背景
+    "dsp_bg":  "#ffffff",  # 显示区背景
+    "dsp_fg":  "#101216",  # 显示文字
+    "dsp_neg": "#d01020",  # 负数
+    "aux_bg":  "#f6f7fa",
+    "aux_fg":  "#3a3d48",
+    "title":   "#181a20",
+    "sub":     "#687080",
+    "ver":     "#a0a8b8",
+    "hint":    "#98a0b0",
+    "tb_bg":   "#ffffff",
+    "tb_bdr":  "#d8dce4",
+    "rad_on":  "#6e40c9",
+    "rad_off": "#8890a0",
+    "num_bg":  "#e8ecf2",
+    "num_fg":  "#181a20",
+    "dim_bg":  "#ccd0d8",
+    "dim_fg":  "#a0a4ae",
+    "op_bg":   "#dce8ff",
+    "op_fg":   "#2050b0",
+    "bit_bg":  "#efe8ff",
+    "bit_fg":  "#6020a0",
+    "eq_bg":   "#6838c8",
+    "eq_fg":   "#ffffff",
+    "ac_bg":   "#ffe8e6",
+    "ac_fg":   "#c02030",
+    "bs_bg":   "#fff0e0",
+    "bs_fg":   "#c06020",
+    "bit_on":  "#8040c0",
+    "bit_off": "#a8acb8",
+    "glow":    QColor(140, 80, 200, 50),
+}
+BH = 2    # border_height
+BR = 9    # border_radius
+IR = 7    # inner_radius
 
 # =====================================================================
-#  BitForge 按钮
+#  按钮
 # =====================================================================
 class BFButton(SiPushButtonRefactor):
     STYLES = {
-        "digit":("digit_bg","digit_fg"), "op":("op_bg","op_fg"),
-        "bit":("bit_bg","bit_fg"), "eq":("eq_bg","eq_fg"),
-        "ac":("ac_bg","ac_fg"), "bs":("bs_bg","bs_fg"),
-        "func":("func_bg","func_fg"),
+        "d":    ("num_bg","num_fg"),
+        "op":   ("op_bg","op_fg"),
+        "bit":  ("bit_bg","bit_fg"),
+        "eq":   ("eq_bg","eq_fg"),
+        "ac":   ("ac_bg","ac_fg"),
+        "bs":   ("bs_bg","bs_fg"),
     }
-    DIM_KEYS = {
-        "digit":("digit_dim_bg","digit_dim_fg"),
-        "func":("digit_dim_bg","digit_dim_fg"),
-    }
-    def __init__(self, text, style="digit", icon_name="", parent=None):
+    DIMS  = {"d": ("dim_bg","dim_fg")}
+
+    def __init__(self, text, style="d", parent=None):
         super().__init__(parent)
-        self._keys = self.STYLES.get(style, ("digit_bg","digit_fg"))
-        self._dim_keys = self.DIM_KEYS.get(style, style)
-        self._dimmed = False
+        self._sty = style
+        self._k = self.STYLES[style]
+        self._dim = False
         self.setText(text)
         self.setFont(SiFont.getFont(size=15))
         self.setMinimumSize(58, 46)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._iname = icon_name
-    def apply_theme(self, t):
-        if self._dimmed and isinstance(self._dim_keys, tuple):
-            k = self._dim_keys
-        else:
-            k = self._keys
-        bg, fg = QColor(t[k[0]]), QColor(t[k[1]])
+        self._paint()
+
+    def _paint(self):
+        k = self.DIMS.get(self._sty, self._k) if self._dim else self._k
+        bg = QColor(C[k[0]]); fg = QColor(C[k[1]])
         sd = self.style_data
         sd.button_color = bg; sd.text_color = fg
         sd.background_color = QColor(0, 0, 0, 0)
-        sd.border_radius = t["btn_r"]
-        sd.border_inner_radius = t["btn_ir"]
-        sd.border_height = t["btn_h"]
-        if self._iname:
-            try:
-                svg = SiGlobal.siui.iconpack.getByteArray(self._iname, t["bit_fg"])
-                self.setSvgIcon(bytes(svg))
-            except Exception: pass
-    def set_dimmed(self, dim: bool):
-        if dim != self._dimmed:
-            self._dimmed = dim
-            self.update()
-    def set_dimmed(self, dim: bool):
-        self._dimmed = dim
+        sd.border_radius = BR; sd.border_inner_radius = IR; sd.border_height = BH
+        # 增强悬停效果: 浅色按钮深色叠加, 深色按钮(等号)浅色叠加
+        if self._dim:
+            sd.idle_color = QColor(0, 0, 0, 0)
+            sd.hover_color = QColor(0, 0, 0, 20)
+        elif self._k == ("eq_bg", "eq_fg"):
+            sd.idle_color = QColor(0, 0, 0, 0)
+            sd.hover_color = QColor(255, 255, 255, 55)
+        else:
+            sd.idle_color = QColor(0, 0, 0, 0)
+            sd.hover_color = QColor(0, 0, 0, 55)
         self.update()
 
+    def set_dimmed(self, d: bool):
+        if d != self._dim: self._dim = d; self._paint()
+
+
 # =====================================================================
-#  Bit 指示器
+#  Bit 指示器 (带位号标签)
+#  - QPixmap 缓存消除鼠标滑动卡顿
+#  - 标签样式: 位号显示在位内部
 # =====================================================================
-class BitGlowIndicator(QWidget):
+class BitGlow(QWidget):
+    valueChanged = pyqtSignal(object)
+    M=8; GAP=3; GGAP=12
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._v=0; self._b=32; self._on="#d090f0"; self._off="#1e1c25"
-        self._glow=QColor(210,150,240,75); self.setFixedHeight(28)
-    def set_val(self,v,b): self._v=v; self._b=b; self.update()
-    def set_theme(self,t):
-        self._on=t["bit_on"]; self._off=t["bit_off"]; self._glow=t["bit_glow"]; self.update()
+        self._v=0; self._b=32; self.setFixedHeight(46)
+        self._cache=None; self._bw_cache=None; self._dirty=True
+        self._font=QFont("Consolas",9)
+
+    def set_val(self,v,b):
+        if self._v==v and self._b==b: return
+        self._v=v; self._b=b
+        self.setFixedHeight(82 if b>32 else 46)
+        self._dirty=True; self.update()
+
+    def resizeEvent(self,e):
+        self._dirty=True; super().resizeEvent(e)
+
+    def mouseReleaseEvent(self,e):
+        if e.button()!=Qt.LeftButton: return
+        x,y=e.x(),e.y(); bw=self._bw_cache
+        if bw is None: return
+        m=self.M; gap=self.GAP; ggap=self.GGAP
+
+        if self._b>32:
+            mid=self.height()//2
+            if y<2 or y>self.height()-8: return
+            if y<mid:
+                if y<12 or y>12+(mid-18): return
+                bit_off=32
+            else:
+                ly=mid+2+10
+                if y<ly or y>ly+(mid-18): return
+                bit_off=0
+        else:
+            if y<14 or y>14+2+(self.height()-18): return
+            bit_off=0
+
+        grp_total=8*bw+7*gap+ggap; rel_x=x-m
+        if rel_x<0: return
+        gi=int(rel_x//grp_total); inner_x=rel_x-gi*grp_total
+        bi=min(int(inner_x//(bw+gap)),7)
+        bit_pos=(self._b-1 if self._b<=32 else 31)-(gi*8+bi)+bit_off
+        if bit_pos<0 or bit_pos>=self._b: return
+        self.valueChanged.emit(self._v^(1<<bit_pos))
+
     def paintEvent(self,e):
-        p=QPainter(self); p.setRenderHint(QPainter.Antialiasing)
+        if self._dirty or self._cache is None:
+            self._rebuild()
+        p=QPainter(self); p.drawPixmap(0,0,self._cache)
+
+    def _rebuild(self):
+        w=max(self.width(),1); h=self.height()
+        self._cache=QPixmap(w,h); self._cache.fill(Qt.transparent)
+        p=QPainter(self._cache); p.setRenderHint(QPainter.Antialiasing)
         u=clamp(self._v,self._b); s=bin(u)[2:].zfill(self._b)
-        m=8; gap=3; ggap=12; tw=self.width()-2*m
-        gs=[s[i:i+8] for i in range(0,self._b,8)]
-        bw=(tw-(len(gs)-1)*ggap-(self._b-len(gs))*gap)/self._b; bw=max(bw,7)
-        f=QFont("Consolas",9); p.setFont(f); x=m
-        for g in gs:
-            for ch in g:
-                r=QRectF(x,4,bw,self.height()-8)
-                if ch=="1":
-                    gl=QRadialGradient(r.center().x(),r.center().y(),bw*1.1)
-                    gl.setColorAt(0,self._glow)
-                    gl.setColorAt(0.5,QColor(self._glow.red(),self._glow.green(),self._glow.blue(),self._glow.alpha()//3))
-                    gl.setColorAt(1,Qt.transparent)
-                    p.setBrush(gl); p.setPen(Qt.NoPen)
-                    p.drawRoundedRect(r.adjusted(-3,-3,3,3),5,5)
-                    p.setBrush(QColor(self._on)); p.setPen(Qt.NoPen)
-                    p.drawRoundedRect(r,3,3)
-                    p.setPen(QColor("#0e0c14"))
-                    p.drawText(r,Qt.AlignCenter,"1")
-                else:
-                    p.setPen(QColor(self._off)); p.drawText(r,Qt.AlignCenter,"0")
-                x+=bw+gap
-            x+=ggap-gap
+        m=self.M; gap=self.GAP; ggap=self.GGAP
+
+        if self._b > 32:
+            half=self._b//2; mid=h//2
+            for row_idx,(seg,y_off,bo) in enumerate([
+                (s[:half],2,half),(s[half:],mid+2,0)]):
+                tw=w-2*m; gs=[seg[i:i+8] for i in range(0,half,8)]
+                bw=(tw-(len(gs)-1)*ggap-(half-len(gs))*gap)/half; bw=max(bw,7)
+                if row_idx==0: self._bw_cache=bw
+                pt=8 if bw>=12 else(7 if bw>=9 else 6)
+                p.setFont(QFont("Consolas",pt))
+                x=m; bit_idx=half-1+bo
+                bh=mid-18  # bit rect height per row
+                for g in gs:
+                    for ch in g:
+                        r=QRectF(x,y_off+10,bw,bh); txt=f"{bit_idx:>2d}"
+                        if ch=="1":
+                            gl=QRadialGradient(r.center().x(),r.center().y(),bw*1.1)
+                            gl.setColorAt(0,C["glow"]); gl.setColorAt(0.5,QColor(200,150,240,20))
+                            gl.setColorAt(1,Qt.transparent)
+                            p.setBrush(gl); p.setPen(Qt.NoPen)
+                            p.drawRoundedRect(r.adjusted(-3,-3,3,3),5,5)
+                            p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
+                            p.drawRoundedRect(r,3,3)
+                            p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
+                        else:
+                            p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
+                        x+=bw+gap; bit_idx-=1
+                    x+=ggap-gap
+            # 分隔线 + 位范围标注 (置于分隔线下方空隙)
+            p.setPen(QColor("#d8dce4")); p.drawLine(m,mid-1,w-m,mid-1)
+            p.setPen(QColor("#8890a0")); p.setFont(QFont("Consolas",7))
+            p.drawText(QRectF(m,2,30,9),Qt.AlignLeft|Qt.AlignVCenter,"63")
+            p.drawText(QRectF(w-m-30,2,30,9),Qt.AlignRight|Qt.AlignVCenter,"32")
+            p.drawText(QRectF(m,mid+2,30,9),Qt.AlignLeft|Qt.AlignVCenter,"31")
+            p.drawText(QRectF(w-m-30,mid+2,30,9),Qt.AlignRight|Qt.AlignVCenter,"0")
+        else:
+            gs=[s[i:i+8] for i in range(0,self._b,8)]
+            tw=w-2*m
+            bw=(tw-(len(gs)-1)*ggap-(self._b-len(gs))*gap)/self._b; bw=max(bw,7)
+            self._bw_cache=bw
+            pt=8 if bw>=12 else(7 if bw>=9 else 6)
+            p.setFont(QFont("Consolas",pt))
+            x=m; y=14; bit_idx=self._b-1
+            for g in gs:
+                for ch in g:
+                    txt=f"{bit_idx:>2d}"; r=QRectF(x,y+2,bw,h-18)
+                    if ch=="1":
+                        gl=QRadialGradient(r.center().x(),r.center().y(),bw*1.1)
+                        gl.setColorAt(0,C["glow"]); gl.setColorAt(0.5,QColor(200,150,240,20))
+                        gl.setColorAt(1,Qt.transparent)
+                        p.setBrush(gl); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r.adjusted(-3,-3,3,3),5,5)
+                        p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r,3,3)
+                        p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
+                    else:
+                        p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
+                    x+=bw+gap; bit_idx-=1
+                x+=ggap-gap
+        p.setFont(self._font); p.end(); self._dirty=False
+
 
 # =====================================================================
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.3"
+    APP = "BitForge"; VER = "v1.5-preview"
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{self.APP} . Programmer Calculator")
+        self.setWindowTitle(f"{self.APP} · Programmer Calculator")
         self.setMinimumSize(540, 660); self.resize(560, 700)
         self.setFocusPolicy(Qt.StrongFocus)
-        self._t = AppTheme.DARK
-        self._v=0; self._dsp="0"; self._rad=10; self._bw=32
-        self._new=True; self._pend=None; self._err=False
-        self._build(); self._apply_theme(); self._render()
+        self._set_style()
+        self._v=0; self._d="0"; self._r=10; self._bw=8
+        self._n=True; self._signed=False; self._p=None; self._e=False
+        self._b(); self._rnd()
 
-    # ===== UI =====
+    # ===== 窗口样式 =====
+    def _set_style(self):
+        self.setStyleSheet(f"QMainWindow{{background:{C['win']};}}")
 
-    def _build(self):
+    # ===== 构建 UI =====
+    def _b(self):
+        from siui.components.label import SiLabelRefactor
+        from siui.gui import SiFont
         cw=QWidget(self); self.setCentralWidget(cw)
         v=QVBoxLayout(cw); v.setContentsMargins(16,10,16,14); v.setSpacing(7)
 
         # 标题栏
-        h=QWidget(); hl=QHBoxLayout(h); hl.setContentsMargins(0,0,0,0); hl.setSpacing(8)
-        try:
-            self._ico=SiLabelRefactor(self); self._ico.setFixedSize(24,24)
-            svg=SiGlobal.siui.iconpack.getByteArray("ic_fluent_calculator_filled","#d2a8ff")
-            px=QPixmap(24,24); px.fill(Qt.transparent)
-            pp=QPainter(px); QSvgRenderer(bytes(svg)).render(pp); pp.end()
-            self._ico.setPixmap(px); hl.addWidget(self._ico)
-        except: pass
-        self._ttl=SiLabelRefactor(self)
-        self._ttl.setText(f"<b>{self.APP}</b>  <span style='color:#808898;font-weight:400'>Programmer</span>")
-        self._ttl.setFont(SiFont.getFont(size=14)); self._ttl.setTextColor("#e8ecf2"); hl.addWidget(self._ttl)
-        hl.addStretch()
-        self._ver=SiLabelRefactor(self); self._ver.setText(self.VER)
-        self._ver.setFont(SiFont.getFont(size=10)); self._ver.setTextColor("#505868"); hl.addWidget(self._ver)
-
-        # 齿轮按钮 — 纯文本，无图标依赖
-        self._gear=QPushButton("⚙"); self._gear.setFixedSize(30,30)
-        self._gear.setFont(QFont("Segoe UI",14))
-        self._gear.setStyleSheet("QPushButton{background:transparent;color:#8a90a0;border:none;}"
-                                  "QPushButton:hover{color:#c0c8d8;}")
-        self._gear.clicked.connect(self._menu_settings)
-        hl.addWidget(self._gear)
+        h=QWidget(); hl=QHBoxLayout(h); hl.setContentsMargins(0,0,0,0)
+        self._tl=SiLabelRefactor(self)
+        self._tl.setText(f"<b>{self.APP}</b>  <span style='color:{C['sub']};font-weight:400'>Programmer</span>")
+        self._tl.setFont(SiFont.getFont(size=14)); self._tl.setTextColor(C["title"])
+        hl.addWidget(self._tl); hl.addStretch()
+        self._vl=SiLabelRefactor(self); self._vl.setText(self.VER)
+        self._vl.setFont(SiFont.getFont(size=10)); self._vl.setTextColor(C["ver"]); hl.addWidget(self._vl)
         v.addWidget(h)
 
-        # 工具栏
-        tb=QWidget(); tbl=QHBoxLayout(tb); tbl.setContentsMargins(0,0,0,0); tbl.setSpacing(6)
-        self._rad_btns={}
-        self._rdf=rdf=QFrame(); rdf.setObjectName("rdf")
-        rdl=QHBoxLayout(rdf); rdl.setContentsMargins(3,3,3,3); rdl.setSpacing(0)
+        # 进制栏
+        tb=QWidget(); tbl=QHBoxLayout(tb); tbl.setContentsMargins(0,0,0,0)
+        self._rb={}; rf=QFrame()
+        rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:10px;border:1px solid {C['tb_bdr']};}}")
+        rl=QHBoxLayout(rf); rl.setContentsMargins(3,3,3,3); rl.setSpacing(0)
         for lb,r in [("HEX",16),("DEC",10),("OCT",8),("BIN",2)]:
             b=QPushButton(lb); b.setCheckable(True); b.setChecked(r==10)
             b.setFont(self._mf(10)); b.setFixedHeight(24); b.setMinimumWidth(44)
-            b.clicked.connect(lambda _,rr=r: self._on_radix(rr))
-            rdl.addWidget(b); self._rad_btns[r]=b
-        tbl.addWidget(rdf,1); v.addWidget(tb)
+            b.setStyleSheet(self._rss(r==10))
+            b.clicked.connect(lambda _,rr=r: self._rad(rr))
+            rl.addWidget(b); self._rb[r]=b
+        tbl.addWidget(rf,1)
+        self._sign_btn=QPushButton("\u00b1")
+        self._sign_btn.setFont(self._mf(14))
+        self._sign_btn.setFixedSize(32,24)
+        self._sign_btn.setCheckable(True)
+        self._sign_btn.setStyleSheet(self._sign_style(False))
+        self._sign_btn.clicked.connect(self._toggle_sign)
+        tbl.addWidget(self._sign_btn)
+        self._bw_lb=QLabel("8b")
+        self._bw_lb.setFont(self._mf(9))
+        self._bw_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
+        self._bw_lb.setAlignment(Qt.AlignCenter)
+        tbl.addWidget(self._bw_lb)
+        v.addWidget(tb)
 
-        # 显示 (用 _dsp_lbl 以免与字符串 _dsp 冲突)
-        self._dsp_lbl=SiLabelRefactor(self); self._dsp_lbl.setMinimumHeight(100)
-        self._dsp_lbl.setBackgroundColor("#10141c"); self._dsp_lbl.setBorderRadius(16)
-        self._dsp_lbl.setAlignment(Qt.AlignRight|Qt.AlignBottom)
-        self._dsp_lbl.setFont(SiFont.getFont(size=34)); self._dsp_lbl.setTextColor("#FFFFFF")
-        self._dsp_lbl.setText("0"); self._dsp_lbl.setContentsMargins(16,12,16,12); v.addWidget(self._dsp_lbl)
+        # 显示
+        self._dl=SiLabelRefactor(self); self._dl.setMinimumHeight(88)
+        self._dl.setBackgroundColor(C["dsp_bg"]); self._dl.setBorderRadius(16)
+        self._dl.setAlignment(Qt.AlignRight|Qt.AlignBottom)
+        self._dl.setFont(SiFont.getFont(size=34)); self._dl.setTextColor(C["dsp_fg"])
+        self._dl.setText("0"); self._dl.setContentsMargins(16,12,16,12); v.addWidget(self._dl)
 
-        # Bit指示器
-        self._bits=BitGlowIndicator(self); self._bits.setObjectName("bits"); v.addWidget(self._bits)
+        # Bit
+        self._bi=BitGlow(self); v.addWidget(self._bi)
+        self._bi.valueChanged.connect(self._on_bit_click)
 
-        # 辅助
-        self._aux={}
-        aw=QWidget(); al=QHBoxLayout(aw); al.setContentsMargins(0,0,0,0); al.setSpacing(5)
-        for nm in ("DEC","HEX","OCT"):
-            lb=SiLabelRefactor(self); lb.setBackgroundColor("#10141c"); lb.setBorderRadius(8)
-            lb.setFont(SiFont.getFont(size=12)); lb.setTextColor("#d4d8e0")
-            lb.setMinimumHeight(30); lb.setAlignment(Qt.AlignCenter)
-            al.addWidget(lb); self._aux[nm]=lb
+        # 辅助 — 2×2 多进制同步显示
+        self._ax={}
+        aw=QWidget(); al=QVBoxLayout(aw); al.setContentsMargins(0,0,0,0); al.setSpacing(4)
+        for row_nm in (("DEC","HEX"),("OCT","BIN")):
+            rw=QWidget(); rl=QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0); rl.setSpacing(5)
+            for nm in row_nm:
+                lb=QLabel(self)
+                lb.setTextFormat(Qt.RichText)
+                lb.setStyleSheet(f"background:{C['aux_bg']};border-radius:8px;padding:0 10px 0 10px;")
+                fsize=10 if nm=="BIN" else 12
+                lb.setFont(SiFont.getFont(size=fsize))
+                lb.setMinimumHeight(26); lb.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+                rl.addWidget(lb); self._ax[nm]=lb
+            al.addWidget(rw)
         v.addWidget(aw)
 
         # 按钮
         rows=[
-            [("AC","ac","",lambda: self._on_clear()),
-             ("⌫","bs","",lambda: self._on_bs()),
-             ("%","op","",lambda: self._on_op("mod")),
-             ("/","op","",lambda: self._on_op("div")),
-             ("NOT","bit","ic_fluent_arrow_sync_filled",lambda: self._on_op("not"))],
-            [("7","d","",lambda: self._on_digit("7")),
-             ("8","d","",lambda: self._on_digit("8")),
-             ("9","d","",lambda: self._on_digit("9")),
-             ("*","op","",lambda: self._on_op("mul")),
-             ("AND","bit","ic_fluent_math_symbols_filled",lambda: self._on_op("and"))],
-            [("4","d","",lambda: self._on_digit("4")),
-             ("5","d","",lambda: self._on_digit("5")),
-             ("6","d","",lambda: self._on_digit("6")),
-             ("-","op","",lambda: self._on_op("sub")),
-             ("OR","bit","ic_fluent_braces_filled",lambda: self._on_op("or"))],
-            [("1","d","",lambda: self._on_digit("1")),
-             ("2","d","",lambda: self._on_digit("2")),
-             ("3","d","",lambda: self._on_digit("3")),
-             ("+","op","",lambda: self._on_op("add")),
-             ("XOR","bit","ic_fluent_code_filled",lambda: self._on_op("xor"))],
-            [("0","d","",lambda: self._on_digit("0")),
-             ("A","func","",lambda: self._on_digit("A")),
-             ("B","func","",lambda: self._on_digit("B")),
-             ("=","eq","ic_fluent_arrow_right_filled",lambda: self._on_eq()),
-             ("<<","bit","ic_fluent_arrow_previous_filled",lambda: self._on_op("lsh"))],
-            [("C","func","",lambda: self._on_digit("C")),
-             ("D","func","",lambda: self._on_digit("D")),
-             ("E","func","",lambda: self._on_digit("E")),
-             ("F","func","",lambda: self._on_digit("F")),
-             (">>","bit","ic_fluent_arrow_next_filled",lambda: self._on_op("rsh"))],
+            [("AC","ac",lambda: self._ac()),("⌫","bs",lambda: self._bs()),
+             ("%","op",lambda: self._op("mod")),("/","op",lambda: self._op("div")),
+             ("NOT","bit",lambda: self._op("not"))],
+            [("7","d",lambda: self._dig("7")),("8","d",lambda: self._dig("8")),
+             ("9","d",lambda: self._dig("9")),("*","op",lambda: self._op("mul")),
+             ("AND","bit",lambda: self._op("and"))],
+            [("4","d",lambda: self._dig("4")),("5","d",lambda: self._dig("5")),
+             ("6","d",lambda: self._dig("6")),("-","op",lambda: self._op("sub")),
+             ("OR","bit",lambda: self._op("or"))],
+            [("1","d",lambda: self._dig("1")),("2","d",lambda: self._dig("2")),
+             ("3","d",lambda: self._dig("3")),("+","op",lambda: self._op("add")),
+             ("XOR","bit",lambda: self._op("xor"))],
+            [("0","d",lambda: self._dig("0")),("A","d",lambda: self._dig("A")),
+             ("B","d",lambda: self._dig("B")),("=","eq",lambda: self._eq()),
+             ("<<","bit",lambda: self._op("lsh"))],
+            [("C","d",lambda: self._dig("C")),("D","d",lambda: self._dig("D")),
+             ("E","d",lambda: self._dig("E")),("F","d",lambda: self._dig("F")),
+             (">>","bit",lambda: self._op("rsh"))],
         ]
-        self._btns=[]; self._digit_btns={}
+        self._btns=[]; self._dbt={}
         grid=QWidget(); gl=QVBoxLayout(grid); gl.setContentsMargins(0,0,0,0); gl.setSpacing(5)
         for rd in rows:
             rw=QWidget(); rl=QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0); rl.setSpacing(5)
-            for txt,sty,icon,cb in rd:
-                btn=BFButton(txt,sty,icon,self); btn.clicked.connect(cb)
+            for txt,sty,cb in rd:
+                btn=BFButton(txt,sty,self); btn.clicked.connect(cb)
                 rl.addWidget(btn); self._btns.append(btn)
-                if txt in "0123456789ABCDEF":
-                    self._digit_btns[txt] = btn
+                if txt in "0123456789ABCDEF": self._dbt[txt]=btn
             gl.addWidget(rw)
         v.addWidget(grid,1)
 
         # 提示
-        self._hint=SiLabelRefactor(self)
-        self._hint.setText("KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  · 按键自动适配进制")
-        self._hint.setFont(SiFont.getFont(size=10)); self._hint.setTextColor("#3b4252")
-        self._hint.setAlignment(Qt.AlignCenter); self._hint.setFixedHeight(18)
-        v.addWidget(self._hint)
+        self._hl=SiLabelRefactor(self)
+        self._hl.setText("KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc")
+        self._hl.setFont(SiFont.getFont(size=10)); self._hl.setTextColor(C["hint"])
+        self._hl.setAlignment(Qt.AlignCenter); self._hl.setFixedHeight(18)
+        v.addWidget(self._hl)
 
-    # ===== 设置菜单 (QMenu) =====
+        # 初始进制状态
+        self._ud()
 
-    def _menu_settings(self):
-        t = self._t
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background: {t['menu_bg']}; border: 1px solid {t['menu_border']};
-                border-radius: 12px; padding: 8px 4px;
-            }}
-            QMenu::item {{
-                color: {t['menu_text']}; padding: 8px 28px 8px 16px;
-                font-size: 13px; font-family: 'Segoe UI'; border-radius: 6px; margin: 2px 6px;
-            }}
-            QMenu::item:selected {{ background: {t['toggle_on_bw']}; color: {t['menu_acc']}; }}
-            QMenu::separator {{
-                height: 1px; background: {t['menu_border']}; margin: 6px 12px;
-            }}
-        """)
+    # ===== 工具 =====
+    def _mf(self,s):
+        try: return SiFont.getFont(size=s)
+        except: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
-        # 主题子菜单
-        theme_menu = QMenu("主题", menu)
-        theme_menu.setStyleSheet(menu.styleSheet())
-        dark_action = theme_menu.addAction("● 暗色" if t["name"] == "Dark" else "  暗色")
-        light_action = theme_menu.addAction("● 亮色" if t["name"] == "Light" else "  亮色")
-        dark_action.triggered.connect(lambda: self._switch_theme(AppTheme.DARK))
-        light_action.triggered.connect(lambda: self._switch_theme(AppTheme.BRIGHT))
-        menu.addMenu(theme_menu)
-
-        menu.addSeparator()
-        ver_action = menu.addAction(f"版本  {self.VER}")
-        ver_action.setEnabled(False)
-        author_action = menu.addAction("作者  BitForge")
-        author_action.setEnabled(False)
-
-        pos = self._gear.mapToGlobal(QPoint(0, self._gear.height()))
-        menu.exec_(pos)
-
-    def _switch_theme(self, new_theme):
-        if self._t["name"] != new_theme["name"]:
-            self._t = new_theme; self._apply_theme()
-
-    # ===== 主题应用 =====
-
-    def _apply_theme(self):
-        t = self._t
-        self.setStyleSheet(f"QMainWindow{{background:{t['window_bg']};}}")
-        self._ttl.setTextColor(t["title_text"])
-        self._ttl.setText(f"<b>{self.APP}</b>  <span style='color:{t['title_sub']};font-weight:400'>Programmer</span>")
-        self._ver.setTextColor(t["ver_text"])
-
-        bss = f"QFrame{{background:{t['toolbar_bg']};border-radius:10px;border:1px solid {t['toolbar_border']};}}"
-        self._rdf.setStyleSheet(bss)
-        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(r==self._rad))
-
-        self._dsp_lbl.setBackgroundColor(t["display_bg"]); self._dsp_lbl.setTextColor(t["display_text"])
-        self._bits.set_theme(t)
-        self._bits.setStyleSheet(f"#bits{{background:{t['display_bg']};border-radius:0 0 16px 16px;}}")
-        for nm,lb in self._aux.items(): lb.setBackgroundColor(t["aux_bg"]); lb.setTextColor(t["aux_text"])
-        for b in self._btns: b.apply_theme(t)
-        self._update_digit_buttons()
-        self._hint.setTextColor(t["hint_text"])
-        self._gear.setStyleSheet(f"QPushButton{{background:transparent;color:{t['title_sub']};border:none;font-size:16px;}}"
-                                  f"QPushButton:hover{{color:{t['menu_acc']};}}")
-        self._render()
-
-    def _ts(self, rad_on=False):
-        t=self._t
-        if rad_on: return (f"QPushButton{{background:{t['toggle_rad_on']};color:{t['toggle_rad_text']};"
-                           f"border:none;border-radius:7px;font-weight:600;}}"
-                           f"QPushButton:hover{{background:{t['toggle_rad_on']};}}")
-        return (f"QPushButton{{background:transparent;color:{t['toggle_dim']};border:none;"
+    def _rss(self,on):
+        if on: return (f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;"
+                       f"border-radius:7px;font-weight:600;}}"
+                       f"QPushButton:hover{{background:{C['rad_on']};}}")
+        return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;"
                 f"border-radius:7px;font-weight:600;}}"
-                f"QPushButton:hover{{color:{t['toggle_bw_text']};}}")
+                f"QPushButton:hover{{color:{C['title']};}}")
 
-    def _urd(self):
-        for r,b in self._rad_btns.items(): b.setStyleSheet(self._ts(r==self._rad))
+    def _ud(self):
+        for r,b in self._rb.items(): b.setStyleSheet(self._rss(r==self._r))
+        vm = {16:"0123456789ABCDEF",10:"0123456789",8:"01234567",2:"01"}[self._r]
+        for ch,btn in self._dbt.items(): btn.set_dimmed(ch not in vm)
 
-    def _update_digit_buttons(self):
-        """根据当前进制，启用/禁用数字按钮"""
-        valid = {16:"0123456789ABCDEF", 10:"0123456789", 8:"01234567", 2:"01"}[self._rad]
-        for ch, btn in self._digit_btns.items():
-            dim = ch not in valid
-            btn.set_dimmed(dim)
-        # 重新应用主题颜色
-        for b in self._btns: b.apply_theme(self._t)
+    def _toggle_sign(self):
+        self._signed=not self._signed
+        self._sign_btn.setChecked(self._signed)
+        self._sign_btn.setStyleSheet(self._sign_style(self._signed))
+        self._rnd()
 
     @staticmethod
-    def _mf(sz):
-        try: return SiFont.getFont(size=sz)
-        except: f=QFont("Segoe UI",sz); f.setHintingPreference(QFont.PreferNoHinting); return f
+    def _sign_style(on):
+        if on: return (f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;border-radius:7px;}}"
+                       f"QPushButton:hover{{background:{C['rad_on']};}}")
+        return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:7px;}}"
+                f"QPushButton:hover{{color:{C['title']};}}")
 
-    # ===== 逻辑 =====
+    # ===== 计算逻辑 =====
+    def _rad(self,r):
+        if self._r==r or self._e: return
+        self._r=r; self._n=False; self._d=self._fmt(self._v); self._ud(); self._rnd()
 
-    def _on_radix(self,r):
-        if self._rad==r or self._err: return
-        self._rad=r; self._new=True; self._urd(); self._update_digit_buttons(); self._render()
-    def _on_digit(self,d):
-        if self._err: self._on_clear()
-        vm={16:"0123456789ABCDEFabcdef",10:"0123456789",8:"01234567",2:"01"}
-        if d not in vm.get(self._rad,""): return
-        mx={2:self._bw,8:22,10:20,16:16}[self._rad]
-        if self._new: self._dsp=d; self._new=False
+    def _dig(self,d):
+        if self._e: self._ac()
+        vm={16:"0123456789ABCDEF",10:"0123456789",8:"01234567",2:"01"}
+        if d not in vm.get(self._r,""): return
+        mx={2:self._bw,8:22,10:20,16:16}[self._r]
+        if self._n: self._d=d; self._n=False
         else:
-            if len(self._dsp)>=mx: return
-            self._dsp+=d
-        try: self._v=clamp(int(self._dsp,self._rad),self._bw)
+            if len(self._d)>=mx: return
+            self._d+=d
+        try: self._v=clamp(int(self._d,self._r),64)
         except ValueError: return
-        self._render()
-    def _on_clear(self):
-        self._v=0; self._dsp="0"; self._pend=None; self._new=True; self._err=False; self._render()
-    def _on_bs(self):
-        if self._err: self._on_clear(); return
-        if self._new: return
-        if len(self._dsp)<=1: self._dsp="0"; self._new=True
-        else: self._dsp=self._dsp[:-1]
-        try: v=int(self._dsp,self._rad) if self._dsp else 0; self._v=clamp(v,self._bw)
+        self._rnd()
+
+    def _ac(self):
+        self._v=0; self._d="0"; self._p=None; self._n=True; self._bw=8; self._e=False; self._rnd()
+
+    def _bs(self):
+        if self._e: self._ac(); return
+        if self._n: return
+        if len(self._d)<=1: self._d="0"; self._n=True
+        else: self._d=self._d[:-1]
+        try: v=int(self._d,self._r) if self._d else 0; self._v=clamp(v,64)
         except ValueError: return
-        self._render()
-    def _on_op(self,op):
-        if self._err: self._on_clear(); return
-        if op=="not": self._v=clamp(~self._v,self._bw); self._dsp=self._fmt(self._v); self._new=True; self._pend=None; self._render(); return
-        if self._pend is not None: self._eval()
-        self._pend={"op":op,"lhs":self._v}; self._new=True; self._render()
-    def _on_eq(self):
-        if self._err or self._pend is None: return
-        self._eval(); self._new=True; self._render()
-    def _eval(self):
-        if self._pend is None: return
-        op,lhs,rhs=self._pend["op"],self._pend["lhs"],self._v
-        try: r=self._compute(op,lhs,rhs)
+        self._rnd()
+
+    def _op(self,op):
+        if self._e: self._ac(); return
+        if op=="not": self._v=clamp(~self._v,64); self._d=self._fmt(self._v); self._n=True; self._p=None; self._rnd(); return
+        if self._p is not None: self._ev()
+        self._p={"op":op,"lhs":self._v}; self._n=True; self._rnd()
+
+    def _eq(self):
+        if self._e or self._p is None: return
+        self._ev(); self._n=True; self._rnd()
+
+    def _ev(self):
+        if self._p is None: return
+        op,lhs,rhs=self._p["op"],self._p["lhs"],self._v
+        try: r=self._cp(op,lhs,rhs)
         except (ZeroDivisionError,ValueError):
-            self._err=True; self._dsp_lbl.setText("Error"); self._dsp_lbl.setTextColor("#ff6b6b"); return
-        self._v=clamp(r,self._bw); self._dsp=self._fmt(self._v); self._pend=None
+            self._e=True; self._dl.setText("Error"); self._dl.setTextColor(C["dsp_neg"]); return
+        self._v=clamp(r,64); self._d=self._fmt(self._v); self._p=None
+
     @staticmethod
-    def _compute(op,lhs,rhs):
-        if op=="add": return lhs+rhs
-        if op=="sub": return lhs-rhs
-        if op=="mul": return lhs*rhs
+    def _cp(op,l,r):
+        if op=="add": return l+r
+        if op=="sub": return l-r
+        if op=="mul": return l*r
         if op=="div":
-            if rhs==0: raise ZeroDivisionError()
-            return int(lhs/rhs)
+            if r==0: raise ZeroDivisionError()
+            return int(l/r)
         if op=="mod":
-            if rhs==0: raise ZeroDivisionError()
-            return lhs%rhs
-        if op=="and": return lhs&rhs
-        if op=="or": return lhs|rhs
-        if op=="xor": return lhs^rhs
-        if op=="lsh": return lhs<<rhs
-        if op=="rsh": return lhs>>rhs
-        return lhs
-    def _fmt(self,val):
-        u=clamp(val,self._bw) if self._bw!=64 else val&BIT_MASKS[64]
-        if self._rad==16: return format(u,"X")
-        if self._rad==8: return format(u,"o")
-        if self._rad==2: return format(u,"b")
+            if r==0: raise ZeroDivisionError()
+            return l%r
+        if op=="and": return l&r
+        if op=="or":  return l|r
+        if op=="xor": return l^r
+        if op=="lsh": return l<<r
+        if op=="rsh": return l>>r
+        return l
+
+    def _fmt(self,v):
+        u=clamp(v,self._bw)
+        if self._r==16: return format(u,"X")
+        if self._r==8:  return format(u,"o")
+        if self._r==2:  return format(u,"b")
         return str(to_signed(u,self._bw))
-    def _render(self):
-        if self._err: return
-        t=self._t; u=clamp(self._v,self._bw)
-        dt=self._fmt(self._v)
-        if self._rad==16: dt="0x"+dt
-        elif self._rad==8: dt="0o"+dt
-        elif self._rad==2: dt="0b"+dt
-        self._dsp_lbl.setText(dt)
-        sgn=to_signed(u,self._bw)
-        self._dsp_lbl.setTextColor(t["display_neg"] if (sgn<0 and self._rad==10) else t["display_text"])
-        self._bits.set_val(self._v,self._bw)
-        self._aux["DEC"].setText(f"DEC  {sgn}")
-        self._aux["HEX"].setText(f"HEX  0x{format(u,'X')}")
-        self._aux["OCT"].setText(f"OCT  0o{format(u,'o')}")
+
+    def _calc_bw(self,v):
+        if self._signed and v<0:
+            for b in (8,16,32,64):
+                if v >= -(1<<(b-1)):
+                    return b
+        if v==0: return 8
+        n=v.bit_length()
+        if n<=8: return 8
+        if n<=16: return 16
+        if n<=32: return 32
+        return 64
+
+    def _rnd(self):
+        if self._e: return
+        self._bw=max(self._bw,self._calc_bw(self._v)); u=clamp(self._v,self._bw); t=self._fmt(self._v)
+        if self._r==16: t="0x"+t
+        elif self._r==8: t="0o"+t
+        elif self._r==2: t="0b"+t
+        elif not self._signed: t=str(u)  # DEC 无符号
+        self._dl.setText(t)
+        s=to_signed(u,self._bw)
+        self._dl.setTextColor(C["dsp_neg"] if (s<0 and self._r==10 and self._signed) else C["dsp_fg"])
+        self._bi.set_val(self._v,self._bw)
+        self._bw_lb.setText(f"{self._bw}b")
+        dec_v=s if self._signed else u
+        self._ax["DEC"].setText(f"<span style='color:{C['sub']}'>DEC</span>  <span style='color:{C['dsp_fg']}'>{dec_v}</span>")
+        self._ax["HEX"].setText(f"<span style='color:{C['sub']}'>HEX</span>  <span style='color:{C['dsp_fg']}'>0x{format(u,'X')}</span>")
+        self._ax["OCT"].setText(f"<span style='color:{C['sub']}'>OCT</span>  <span style='color:{C['dsp_fg']}'>0o{format(u,'o')}</span>")
+        self._ax["BIN"].setText(f"<span style='color:{C['sub']}'>BIN</span>  <span style='color:{C['dsp_fg']}'>0b{format(u,'b')}</span>")
+
+    def _on_bit_click(self,v):
+        if self._e: self._e=False
+        self._v=clamp(v,64); self._d=self._fmt(self._v); self._p=None
+        self._rnd()
 
     # ===== 键盘 =====
-
     def keyPressEvent(self,e:QKeyEvent):
         k,tx=e.key(),e.text()
-        if tx in "0123456789": self._on_digit(tx); return
-        if tx.lower() in "abcdef" and self._rad==16: self._on_digit(tx.upper()); return
+        if tx in "0123456789": self._dig(tx); return
+        if tx.lower() in "abcdef" and self._r==16: self._dig(tx.upper()); return
         om={Qt.Key_Plus:"add",Qt.Key_Minus:"sub",Qt.Key_Asterisk:"mul",
             Qt.Key_Slash:"div",Qt.Key_Percent:"mod",
             Qt.Key_Ampersand:"and",Qt.Key_Bar:"or",Qt.Key_AsciiCircum:"xor"}
-        if k in om: self._on_op(om[k]); return
-        if k in (Qt.Key_Enter,Qt.Key_Return) or tx=="=": self._on_eq(); return
-        if k==Qt.Key_Backspace: self._on_bs(); return
-        if k in (Qt.Key_Escape,Qt.Key_Delete): self._on_clear(); return
-        if k==Qt.Key_AsciiTilde: self._on_op("not"); return
-        if k==Qt.Key_Less: self._on_op("lsh"); return
-        if k==Qt.Key_Greater: self._on_op("rsh"); return
+        if k in om: self._op(om[k]); return
+        if k in (Qt.Key_Enter,Qt.Key_Return) or tx=="=": self._eq(); return
+        if k==Qt.Key_Backspace: self._bs(); return
+        if k in (Qt.Key_Escape,Qt.Key_Delete): self._ac(); return
+        if k==Qt.Key_AsciiTilde: self._op("not"); return
+        if k==Qt.Key_Less: self._op("lsh"); return
+        if k==Qt.Key_Greater: self._op("rsh"); return
         super().keyPressEvent(e)
+
 
 # =====================================================================
 def main():
     app=QApplication(sys.argv); app.setApplicationName("BitForge")
-    SiGlobal.siui.reloadAllWindowsStyleSheet()
-    w=BitForge(); w.show(); sys.exit(app.exec_())
+    w=BitForge(); w.show()
+    # 立即释放图标包内存 (~50MB, 5410 个 SVG)
+    from siui.core import SiGlobal
+    if hasattr(SiGlobal.siui,'iconpack') and hasattr(SiGlobal.siui.iconpack,'clear'):
+        SiGlobal.siui.iconpack.clear()
+    sys.exit(app.exec_())
 if __name__=="__main__": main()
