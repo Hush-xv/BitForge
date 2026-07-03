@@ -16,7 +16,6 @@ from PyQt5.QtWidgets import (
 )
 
 from siui.components.button import SiPushButtonRefactor
-from siui.gui import SiFont
 
 # =====================================================================
 #  数学工具
@@ -88,6 +87,7 @@ class BFButton(SiPushButtonRefactor):
         self._k = self.STYLES[style]
         self._dim = False
         self.setText(text)
+        from siui.gui import SiFont
         self.setFont(SiFont.getFont(size=15))
         self.setMinimumSize(58, 46)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -389,7 +389,9 @@ class BitForge(QMainWindow):
 
     # ===== 工具 =====
     def _mf(self,s):
-        try: return SiFont.getFont(size=s)
+        try:
+            from siui.gui import SiFont
+            return SiFont.getFont(size=s)
         except: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
     def _rss(self,on):
