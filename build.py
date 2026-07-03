@@ -1,7 +1,7 @@
 """
 BitForge — PyInstaller 打包脚本
 用法:
-    python build.py              # 目录模式 BitForge_Portable/（启动快）
+    python build.py              # 目录模式 BitForge/（启动快，文件夹分发）
     python build.py --portable   # 单 exe BitForge.exe（方便分发，启动稍慢）
 """
 import os, shutil, subprocess, sys
@@ -74,9 +74,12 @@ if result.returncode == 0:
     else:
         src = os.path.join(DIST, "BitForge")
         dst = os.path.join(DIST, FOLDER_NAME)
-        if os.path.exists(dst): shutil.rmtree(dst)
-        os.rename(src, dst)
-        exe = os.path.join(dst, "BitForge.exe")
+        if src != dst:
+            if os.path.exists(dst): shutil.rmtree(dst)
+            os.rename(src, dst)
+            exe = os.path.join(dst, "BitForge.exe")
+        else:
+            exe = os.path.join(src, "BitForge.exe")
         print(f"\n[OK]  {mode} 打包完成!")
         print(f"     {dst}\\")
         print(f"     ├─ BitForge.exe")
