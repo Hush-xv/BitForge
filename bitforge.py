@@ -149,10 +149,10 @@ C = {
     "rad_on":"#AF92FB", "rad_off":"#8890A0", "num_bg":"#D4D4D4", "num_fg":"#181A20",
     "dim_bg":"#E1E3E6", "dim_fg":"#A8AEB8", "toast_bg":"#53A9FD", "toast_fg":"#102C46",
     "success":"#58C667", "warning":"#FFB45B", "lock":"#E8D836",
-    "op_bg":"#53A9FD", "op_fg":"#102C46", "op_active":"#53A9FD",
-    "bit_bg":"#C79579", "bit_fg":"#2D201A", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
-    "ac_bg":"#FF6D7F", "ac_fg":"#4A1019", "bs_bg":"#FFB45B", "bs_fg":"#4A2A00",
-    "bit_on":"#AF92FB", "bit_on_fg":"#261A3E", "bit_off":"#8C94A0",
+    "op_bg":"#DDEEFD", "op_fg":"#1D6FBE", "op_active":"#2D7FD6",
+    "bit_bg":"#EFEAFD", "bit_fg":"#6B4FD8", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
+    "ac_bg":"#FF6D7F", "ac_fg":"#4A1019", "bs_bg":"#FFDDE1", "bs_fg":"#B8323F",
+    "bit_on":"#AF92FB", "bit_on_fg":"#261A3E", "bit_off":"#7A8290",
 }
 LIGHT_C = C.copy()
 DARK_C = {**LIGHT_C,
@@ -161,9 +161,9 @@ DARK_C = {**LIGHT_C,
     "ver":"#7F8A9B", "hint":"#8590A1", "tb_bg":"#20242C", "tb_bdr":"#454E5D",
     "rad_on":"#AF92FB", "rad_off":"#AAB3C2", "num_bg":"#3A414C", "num_fg":"#F3F5F8",
     "dim_bg":"#272D37", "dim_fg":"#687487", "toast_bg":"#53A9FD", "toast_fg":"#102C46",
-    "op_bg":"#24517D", "op_fg":"#EAF6FF", "op_active":"#53A9FD",
-    "bit_bg":"#5B453A", "bit_fg":"#F1D8C8", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
-    "ac_bg":"#6A3540", "ac_fg":"#FFE7EA", "bs_bg":"#765020", "bs_fg":"#FFF0D0",
+    "op_bg":"#1E3448", "op_fg":"#8FC5F5", "op_active":"#53A9FD",
+    "bit_bg":"#32294B", "bit_fg":"#CFBBFF", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
+    "ac_bg":"#6A3540", "ac_fg":"#FFE7EA", "bs_bg":"#5A2F35", "bs_fg":"#FFB9C1",
     "bit_on":"#AF92FB", "bit_on_fg":"#261A3E", "bit_off":"#687487",
 }
 BH = 0    # border_height：取消透明底边，避免下圆角被截断
@@ -216,9 +216,9 @@ class BFButton(SiPushButtonRefactor):
             sd.button_color = QColor(C[k[0]]); sd.text_color = QColor(C[k[1]])
             sd.hover_color = QColor(0, 0, 0, 20)
         elif self._active:
-            # 待定运算高亮: 主色填充
-            sd.button_color = QColor(C["op_active"]); sd.text_color = QColor(C["op_fg"])
-            sd.hover_color = QColor(255, 255, 255, 55)
+            # 待定运算高亮: 主题蓝深一档填充, 白字保证对比
+            sd.button_color = QColor(C["op_active"]); sd.text_color = QColor("#FFFFFF")
+            sd.hover_color = QColor(255, 255, 255, 45)
         else:
             k = self._k
             sd.button_color = QColor(C[k[0]]); sd.text_color = QColor(C[k[1]])
@@ -371,9 +371,9 @@ class BitGlow(QWidget):
                     for ch in g:
                         r=QRectF(x,y_off+10,bw,bh); txt=f"{bit_idx:>2d}"
                         if ch=="1":
-                            # 外层光晕 (纯色半透明，无渐变)
-                            glow=QColor(C["bit_on"]); glow.setAlpha(42); p.setBrush(glow); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
+                            # 外层光晕 (纯色半透明, 内收不越位号区)
+                            glow=QColor(C["bit_on"]); glow.setAlpha(30); p.setBrush(glow); p.setPen(Qt.NoPen)
+                            p.drawRoundedRect(r.adjusted(-1,-1,1,1),3,3)
                             p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                             p.drawRoundedRect(r,3,3)
                             p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
@@ -405,9 +405,9 @@ class BitGlow(QWidget):
                 for ch in g:
                     txt=f"{bit_idx:>2d}"; r=QRectF(x,y+2,bw,h-18)
                     if ch=="1":
-                        # 外层光晕 (纯色半透明，无渐变)
-                        glow=QColor(C["bit_on"]); glow.setAlpha(42); p.setBrush(glow); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
+                        # 外层光晕 (纯色半透明, 内收不越位号区)
+                        glow=QColor(C["bit_on"]); glow.setAlpha(30); p.setBrush(glow); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r.adjusted(-1,-1,1,1),3,3)
                         p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                         p.drawRoundedRect(r,3,3)
                         p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
@@ -521,7 +521,7 @@ class BitForge(QMainWindow):
         tb=QFrame(); tb.setObjectName("calcToolbar")
         self._toolbar=tb
         tb.setStyleSheet(f"QFrame#calcToolbar{{background:{C['tb_bg']};border:1px solid {C['tb_bdr']};border-radius:12px;}}")
-        tbl=QHBoxLayout(tb); tbl.setContentsMargins(8,5,8,5)
+        tbl=QHBoxLayout(tb); tbl.setContentsMargins(8,5,8,5); tbl.setSpacing(4)
         self._radix_buttons={}; rf=QFrame()
         rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:10px;border:1px solid {C['tb_bdr']};}}")
         rl=QHBoxLayout(rf); rl.setContentsMargins(3,3,3,3); rl.setSpacing(0)
@@ -617,7 +617,7 @@ class BitForge(QMainWindow):
         self._expr_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self._expr_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._display_meta_label=QLabel(self._display)
-        self._display_meta_label.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.6px;")
+        self._display_meta_label.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.4px;")
         self._display_meta_label.setAlignment(Qt.AlignLeft|Qt.AlignTop)
         self._display_meta_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._display.installEventFilter(self)
@@ -627,19 +627,19 @@ class BitForge(QMainWindow):
         # 独立表达式栏：不改变传统按键计算状态
         expr_bar=QFrame(); expr_bar.setObjectName("expressionBar")
         expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:9px;}}")
-        expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(10,3,5,3); expr_l.setSpacing(7)
+        expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(10,4,6,4); expr_l.setSpacing(7)
         expr_tag=QLabel("EXPR"); expr_tag.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
         self._expression_input=QLineEdit(self)
         self._expression_input.setPlaceholderText("(0x20 << 3) | 0x07")
         self._expression_input.setClearButtonEnabled(True)
         self._expression_input.setToolTip("支持括号、0x/0b/0o 和 + - * / % & | ^ ~ << >>")
-        self._expression_input.setStyleSheet(f"QLineEdit{{background:transparent;color:{C['title']};border:none;padding:4px 3px;}}QLineEdit:focus{{color:{C['title']};}}")
+        self._expression_input.setStyleSheet(f"QLineEdit{{background:transparent;color:{C['title']};border:none;padding:4px 3px;font-family:Consolas,'Courier New',monospace;}}QLineEdit:focus{{color:{C['title']};}}")
         self._expression_input.returnPressed.connect(self._evaluate_expression)
         self._expression_input.setContextMenuPolicy(Qt.CustomContextMenu)
         self._expression_input.customContextMenuRequested.connect(self._show_expression_menu)
         expr_go=QPushButton("="); expr_go.setFixedSize(32,28); expr_go.clicked.connect(self._evaluate_expression)
         expr_go.setToolTip("计算表达式")
-        expr_go.setStyleSheet(f"QPushButton{{background:{C['eq_bg']};color:{C['eq_fg']};border:none;border-radius:6px;font-weight:700;}}QPushButton:hover{{background:{C['rad_on']};}}")
+        expr_go.setStyleSheet(f"QPushButton{{background:{C['eq_bg']};color:{C['eq_fg']};border:none;border-radius:8px;font-weight:700;font-size:14px;}}QPushButton:hover{{background:{C['rad_on']};}}")
         expr_l.addWidget(expr_tag); expr_l.addWidget(self._expression_input,1); expr_l.addWidget(expr_go)
         v.addWidget(expr_bar)
 
@@ -719,9 +719,10 @@ class BitForge(QMainWindow):
             gl.addWidget(rw)
         v.addWidget(grid)
 
-        # 提示
+        # 提示 (键帽样式, 随主题着色)
         self._hint_label=SiLabelRefactor(self)
-        self._hint_label.setText(self.HINT)
+        self._hint_label.setTextFormat(Qt.RichText)
+        self._hint_label.setText(self._hint_html())
         self._hint_label.setFont(SiFont.getFont(size=10)); self._hint_label.setTextColor(C["hint"])
         self._hint_label.setStyleSheet(f"color:{C['hint']};")
         self._hint_label.setAlignment(Qt.AlignCenter); self._hint_label.setFixedHeight(18)
@@ -737,6 +738,22 @@ class BitForge(QMainWindow):
         self._refresh_radix_buttons()
 
     # ===== 工具 =====
+    def _hint_html(self,compact=False):
+        """底部快捷键提示: 键帽样式, 随主题着色。"""
+        kb=lambda t:(f"<span style='background:{C['aux_bg']};color:{C['title']};"
+                     f"font-weight:600;'>&nbsp;{t}&nbsp;</span>")
+        plain=lambda t:f"<span style='color:{C['hint']}'>{t}</span>"
+        sep=plain("  ·  ")
+        if compact:
+            return (kb("F1")+plain(" 帮助 ")+sep+
+                    kb("F2")+plain(" 表达式 ")+sep+
+                    kb("Ctrl+C/V"))
+        return (kb("F1")+plain(" 帮助 ")+sep+
+                kb("F2")+plain(" 表达式 ")+sep+
+                kb("Ctrl+C")+plain(" 复制 ")+sep+
+                kb("Ctrl+V")+plain(" 粘贴 ")+sep+
+                plain("Enter 求值 · Esc 清空"))
+
     def _vsep(self):
         w=QWidget(); w.setFixedSize(1,16)
         w.setStyleSheet(f"background:{C['tb_bdr']};")
@@ -765,7 +782,7 @@ class BitForge(QMainWindow):
             self._tools_btn.setText("⋯" if compact else "工具")
             self._tools_btn.setFixedWidth(28 if compact else 38)
             self._mask_le.setFixedWidth(118 if compact else 154)
-            self._hint_label.setText("F1 帮助 · F2 表达式 · Ctrl+C/V" if compact else self.HINT)
+            self._hint_label.setText(self._hint_html(compact))
             self._aux_last={}
             dlog("layout", "compact" if compact else "regular", "width", self.width())
 
@@ -1343,7 +1360,11 @@ class BitForge(QMainWindow):
         radix_name={16:"HEX",10:"DEC",8:"OCT",2:"BIN"}[self._radix]
         state="SIGNED" if self._signed else "UNSIGNED"
         width_state="LOCKED" if self._locked else "AUTO"
-        meta=f"{radix_name}   ·   {self._bit_width} BIT   ·   {state}   ·   {width_state}"
+        sep=f"<span style='color:{C['hint']}'> · </span>"
+        meta=(f"<span>{radix_name}</span>{sep}"
+              f"<span>{self._bit_width} BIT</span>{sep}"
+              f"<span>{state}</span>{sep}"
+              f"<span style='color:{C['lock'] if self._locked else C['rad_on']}'>{width_state}</span>")
         if meta!=self._meta_last:
             self._meta_last=meta
             self._display_meta_label.setText(meta)

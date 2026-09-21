@@ -29,7 +29,7 @@
 | 🧰 **Bit Tools** | Rotate, byte swap, bit-field extract/write, and sign extension from the Tools menu |
 | 🧠 **Expression Mode** | Parentheses, radix prefixes, and safe 64-bit arithmetic without `eval` |
 | 💡 **Bit Indicator** | Bit-level visualization with numbered positions |
-| 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 (right-click to clear) |
+| 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 (right-click to clear, hover to inspect) |
 | 📋 **One-Click Copy** | `Ctrl+C` copies display; click a DEC/HEX/OCT/BIN row to copy that radix; right-click display for a copy menu |
 | 🧩 **Visible Bit Cells** | Every bit renders as a cell — click targets are always visible |
 | 🔎 **Grouped Long Values** | HEX groups by byte and BIN groups by nibble; copy always keeps the raw value |
@@ -51,31 +51,17 @@
 
 ## Screenshots / 截图
 
-```
-┌──────────────────────────────────────────┐
-│ 🔧 BitForge  Programmer          v1.5.0 │
-│ [HEX] [DEC] [OCT] [BIN]          [±] 32b│
-│ ┌──────────────────────────────────────┐│
-│ │                           0xDEADBEEF ││
-│ └──────────────────────────────────────┘│
-│ 63  62  ...         33  32             │
-│ [ ][ ]...[ ][ ]          ← upper 32bit │
-│ ─────────────────────────────────────── │
-│ 31  30  ...          1   0             │
-│ [ ][ ]...[ ][ ]          ← lower 32bit │
-│                                        │
-│ DEC  3735928559    HEX  0xDEADBEEF     │
-│ OCT  0o33653337357 BIN  0b11011110...  │
-│ ┌────┬────┬────┬────┬────┐             │
-│ │ AC │ ⌫  │ %  │ /  │NOT │             │
-│ │ 7  │ 8  │ 9  │ *  │AND │             │
-│ │ 4  │ 5  │ 6  │ -  │ OR │             │
-│ │ 1  │ 2  │ 3  │ +  │XOR │             │
-│ │ 0  │ A  │ B  │ =  │ << │             │
-│ │ C  │ D  │ E  │ F  │ >> │             │
-│ └────┴────┴────┴────┴────┘             │
-└──────────────────────────────────────────┘
-```
+**Light / 亮色主题**
+
+![BitForge light theme](docs/screenshot-light.png)
+
+**Dark · 64-bit / 暗色主题 · 64 位双行**
+
+![BitForge dark theme](docs/screenshot-dark-64bit.png)
+
+**Expression Mode / 表达式模式**
+
+![BitForge expression mode](docs/screenshot-expression.png)
 
 ---
 
