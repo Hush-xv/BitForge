@@ -94,8 +94,12 @@ def evaluate_expression(text, b=64):
         if op in ("|","OR"): value=left|right
         elif op in ("^","XOR"): value=left^right
         elif op in ("&","AND"): value=left&right
-        elif op=="<<": value=left<<right
-        elif op==">>": value=left>>right
+        elif op=="<<":
+            if right<0: raise ValueError("移位量不能为负")
+            value=0 if right>=b else left<<right
+        elif op==">>":
+            if right<0: raise ValueError("移位量不能为负")
+            value=0 if right>=b else left>>right
         elif op=="+": value=left+right
         elif op=="-": value=left-right
         elif op=="*": value=left*right
@@ -812,6 +816,9 @@ class BitForge(QMainWindow):
         self._aux_last={}; self._expr_last=""; self._meta_last=""; self._lock_style_state=None; self._display_font_size=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
         self._update_layout_density(); self._refresh_display()
+        if self._error:
+            # 错误态换主题后重绘 Error, 避免显示回流为默认 0
+            self._display.setText("Error"); self._set_display_color(C["dsp_neg"])
         self._toast("深色主题" if theme=="dark" else "亮色主题")
         dlog("theme set:", theme)
 
@@ -840,6 +847,10 @@ class BitForge(QMainWindow):
             if self.isVisible(): self.show()
 
     def _show_display_menu(self,pos):
+        if self._error:
+            # 错误态没有可复制的数值, 防止把字面 "Error" 复制走
+            self._toast("错误状态无可复制值","warning")
+            return
         m=self._menu()
         cur=self._display_value
         a_cur=m.addAction(f"复制  {cur}")
@@ -1123,8 +1134,8 @@ class BitForge(QMainWindow):
         if act==a_ones: self._apply_tool_value(BIT_MASKS[self._bit_width],"全置 1")
         elif act==a_zero: self._apply_tool_value(0,"清零")
         elif act==a_invert: self._apply_tool_value(~self._value,"按位取反")
-        elif act==a_rol: self._apply_operator("rol")
-        elif act==a_ror: self._apply_operator("ror")
+        elif act==a_rol: self._apply_tool_value(rotate_left(self._value,self._bit_width,1),"循环左移 1 位")
+        elif act==a_ror: self._apply_tool_value(rotate_right(self._value,self._bit_width,1),"循环右移 1 位")
         elif act==a_swap: self._apply_tool_value(byte_swap(self._value,self._bit_width),"字节交换")
         elif act==a_extract: self._extract_field()
         elif act==a_write: self._write_field()
@@ -1284,8 +1295,10 @@ class BitForge(QMainWindow):
         if op=="and": return l&r
         if op=="or":  return l|r
         if op=="xor": return l^r
-        if op=="lsh": return l<<r
-        if op=="rsh": return l>>r
+        if op=="lsh":
+            return 0 if r>=64 else l<<r   # r 超出 64 位空间一律为 0, 防止无界分配
+        if op=="rsh":
+            return 0 if r>=64 else l>>r
         if op=="rol": return rotate_left(l,b,r)
         if op=="ror": return rotate_right(l,b,r)
         return l

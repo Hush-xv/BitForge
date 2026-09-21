@@ -5,7 +5,7 @@ BitForge — 组合测试套件
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtCore import Qt, QEvent, QPoint
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QApplication
 from bitforge import (BitForge, C, byte_swap, clamp, evaluate_expression,
@@ -535,6 +535,49 @@ check("expression history remembers success", w._expression_history[0] == "0x20 
 button=w._buttons[0]; button._hover=True; button._pressed=True; button.update()
 check("button feedback state is available", button._hover and button._pressed)
 button._hover=False; button._pressed=False
+
+# ======== 22. Bug 修复回归: 移位越界 / ROL 语义 / 错误态 ========
+print("=== 22. Bug-fix regression: shift bounds / ROL / error state ===")
+
+# 移位量为负 → 值经 64 位钳位后视为巨移位, 结果为 0 (不再 MemoryError 崩溃)
+check("expr negative shift -> 0", evaluate_expression("1 << -1", 64) == 0)
+check("expr negative rshift -> 0", evaluate_expression("1 >> -1", 64) == 0)
+
+# 移位量 >= 位宽 → 结果为 0, 不再无界膨胀
+check("expr shift 65 -> 0", evaluate_expression("1 << 65", 64) == 0)
+check("expr rshift huge -> 0", evaluate_expression("99 >> 9999999999", 64) == 0)
+
+# 键盘路径: 超大移位量同样安全
+w._clear_all(); w._radix = 10
+w._value = 2**64 - 1; w._refresh_display()
+w._apply_operator("lsh"); w._equals()
+check("keypad huge shift -> 0", w._value == 0 and not w._error, hex(w._value))
+w._clear_all()
+
+# ROL 菜单: 即时循环移位 1 位 (值 3, 8 位 → 6)
+w._clear_all(); w._value = 3; w._refresh_display()
+n_acts = len(w._history)
+w._apply_tool_value(rotate_left(w._value, w._bit_width, 1), "循环左移 1 位")
+check("ROL by 1", w._value == 6, hex(w._value))
+check("ROL recorded in history", len(w._history) >= 1 and w._history[0] == 6, str(w._history[:3]))
+
+# 错误态切主题: Error 显示保持
+w._clear_all(); w._value = 10; w._refresh_display()
+w._apply_operator("div"); w._value = 0; w._equals()
+assert w._error and w._display.text() == "Error"
+w._set_theme("dark")
+check("error survives theme switch", w._error and w._display.text() == "Error",
+      f"text={w._display.text()}")
+w._set_theme("light")
+check("error survives theme switch back", w._display.text() == "Error", w._display.text())
+
+# 错误态右键菜单: 不提供复制
+clipboard_before = QApplication.clipboard().text()
+w._show_display_menu(QPoint(0, 0))
+check("error context menu blocked", "无可复制" in w._toast_lb.text() and
+      QApplication.clipboard().text() == clipboard_before, w._toast_lb.text())
+w._toast_timer.stop(); w._toast_lb.hide()
+w._clear_all()
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
