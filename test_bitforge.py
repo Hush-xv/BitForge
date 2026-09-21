@@ -15,6 +15,7 @@ from bitforge import (BitForge, C, byte_swap, clamp, evaluate_expression,
 app = QApplication(sys.argv)
 w = BitForge()
 w._persist = False   # 测试不写 QSettings
+w.show(); app.processEvents()  # 触发布局，验证浮层坐标
 passed = 0; failed = 0
 
 def check(name, cond, detail=""):
@@ -398,7 +399,7 @@ check("division error clears pending", w._error and w._pending is None and w._la
 check("division error explains cause", w._toast_lb.text() == "除数不能为 0", w._toast_lb.text())
 w._input_digit("3")
 check("digit recovers from error", not w._error and w._value == 3, str(w._value))
-check("help button", hasattr(w, "_help_btn") and hasattr(w, "_show_help"))
+check("help remains available", not hasattr(w, "_help_btn") and hasattr(w, "_show_help"))
 
 # ======== 15. 位操作工具 / 长数值显示 ========
 print("=== 15. Bit tools / grouped display ===")
@@ -460,11 +461,80 @@ print("=== 17. Theme switching ===")
 
 w._value=0x1234; w._expression_input.setText("0x12 + 0x34")
 w._set_theme("dark")
-check("dark theme applies", w._theme == "dark" and C["win"] == "#171a20")
+check("dark theme applies", w._theme == "dark" and C["win"] == "#171A20")
 check("theme preserves value", w._value == 0x1234 and w._expression_input.text() == "0x12 + 0x34")
-check("theme rebuilds controls", hasattr(w, "_theme_btn") and hasattr(w, "_tools_btn"))
+check("theme is consolidated in tools", not hasattr(w, "_theme_btn") and hasattr(w, "_tools_btn"))
 w._set_theme("light")
-check("light theme restores", w._theme == "light" and C["win"] == "#f0f2f5")
+check("light theme restores", w._theme == "light" and C["win"] == "#F0F2F5")
+
+# ======== 18. 外观状态与窄窗口布局 ========
+print("=== 18. Visual hierarchy / responsive layout ===")
+
+w._radix=16; w._signed=False; w._locked=True; w._bit_width=32; w._value=0xDEADBEEF; w._refresh_display()
+check("display status metadata", "HEX" in w._display_meta_label.text() and "32 BIT" in w._display_meta_label.text(),
+      w._display_meta_label.text())
+check("active radix visually marked", C["rad_on"] in w._aux_labels["HEX"].text(), w._aux_labels["HEX"].text())
+w.resize(580,700); w._update_layout_density(); app.processEvents()
+check("compact layout", w._compact_layout and w._tools_btn.text()=="⋯", "compact")
+w.resize(700,700); w._update_layout_density(); app.processEvents()
+check("regular layout", not w._compact_layout and w._tools_btn.text()=="工具", "regular")
+check("accessible calculator button", w._buttons[0].accessibleName() == "计算器按键 AC", w._buttons[0].accessibleName())
+
+# ======== 19. 菜单、反馈与 Mask 状态 ========
+print("=== 19. Menu / feedback / mask state ===")
+
+menu=w._menu()
+check("menu uses unified style", "QMenu::item:selected" in menu.styleSheet())
+w._toast("state", "error")
+check("error toast style", C["dsp_neg"] in w._toast_lb.styleSheet(), w._toast_lb.styleSheet())
+check("toast is outside result card", w._toast_lb.parentWidget() is w.centralWidget(), str(w._toast_lb.parentWidget()))
+w._on_mask_changed("0xDC")
+check("active mask feedback", "Mask active: 0xDC" in w._mask_le.toolTip(), w._mask_le.toolTip())
+check("active mask badge", w._mask_state_label.text() == "ON", w._mask_state_label.text())
+w._on_mask_changed("")
+check("empty mask placeholder", w._mask_le.placeholderText() == "0x…", w._mask_le.placeholderText())
+check("empty mask badge", w._mask_state_label.text() == "OFF", w._mask_state_label.text())
+check("mask has clear action", w._mask_le.isClearButtonEnabled())
+w._bit_indicator.set_val(1,8); w._bit_indicator.resize(500,46)
+check("bit hover hit test", w._bit_indicator._bit_at(460,25) == 0, str(w._bit_indicator._bit_at(460,25)))
+check("button accessibility description", w._buttons[0].accessibleDescription() == "全部清除", w._buttons[0].accessibleDescription())
+
+# ======== 20. 显示卡片与双主题对比度 ========
+print("=== 20. Display card / theme contrast ===")
+
+check("display uses a card", C["dsp_bg"] in w._display_card.styleSheet(), w._display_card.styleSheet())
+check("compact display card", w._display.height() == 84, str(w._display.height()))
+check("mask is in the bit map header", w._mask_le.width() == 154, str(w._mask_le.width()))
+check("content header has no duplicate logo", not hasattr(w, "_brand_logo"))
+check("button has full rounded shape", "paintEvent" in type(w._buttons[0]).__dict__ and w._buttons[0].bottomBorderHeight == 0 and w._buttons[0].style_data.border_radius == 12 and w._buttons[0].style_data.border_inner_radius == 12)
+check("content header is removed", not hasattr(w, "_version_label") and not hasattr(w, "_theme_btn"))
+w._radix=16; w._refresh_radix_buttons()
+check("number key uses neutral contrast", w._buttons[5].style_data.button_color.name().upper() == "#D4D4D4", w._buttons[5].style_data.button_color.name())
+w._mask_le.setText("0xAA")
+w._set_theme("dark")
+check("dark display text is visible", C["dsp_fg"] in w._display.styleSheet(), w._display.styleSheet())
+check("dark display card is visible", C["dsp_bg"] in w._display_card.styleSheet(), w._display_card.styleSheet())
+check("dark content header has no duplicate logo", not hasattr(w, "_brand_logo"))
+check("theme keeps mask input", w._mask_le.text() == "0xAA", w._mask_le.text())
+w._set_theme("light")
+check("semantic accent is restrained purple", C["rad_on"] == "#AF92FB", C["rad_on"])
+check("semantic success uses green", C["success"] == "#58C667", C["success"])
+check("semantic warning uses orange", C["warning"] == "#FFB45B", C["warning"])
+
+# ======== 21. 位宽切换不改变键盘尺寸 ========
+print("=== 21. Stable keypad across bit widths ===")
+
+w._set_bit_width(32); app.processEvents()
+height_32=w._buttons[0].height()
+w._set_bit_width(64); app.processEvents()
+height_64=w._buttons[0].height()
+check("keypad row height is stable", height_32 == height_64 == 42, f"{height_32}/{height_64}")
+check("keypad grid height is stable", w._keypad_grid.height() == 277, str(w._keypad_grid.height()))
+w._expression_input.setText("0x20 << 2"); w._evaluate_expression()
+check("expression history remembers success", w._expression_history[0] == "0x20 << 2", str(w._expression_history))
+button=w._buttons[0]; button._hover=True; button._pressed=True; button.update()
+check("button feedback state is available", button._hover and button._pressed)
+button._hover=False; button._pressed=False
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")

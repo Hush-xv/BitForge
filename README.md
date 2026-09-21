@@ -1,7 +1,7 @@
 # BitForge
 
 <p align="center">
-  <code style="font-size:48px;font-weight:bold;color:#6e40c9">🔧 BitForge</code>
+  <code style="font-size:48px;font-weight:bold;color:#53A9FD">🔧 BitForge</code>
 </p>
 <p align="center">
   <b>BitForge</b> — A programmer calculator for embedded engineers.<br>
@@ -24,7 +24,7 @@
 |---------|-------------|
 | 🧮 **Arithmetic** | `+` `−` `×` `/` `%` with integer division |
 | 🔢 **Radix Switch** | HEX / DEC / OCT / BIN — input in any base |
-| 📐 **Auto Bit-Width** | 8/16/32/64 bit auto-range, increases only, AC to reset |
+| 📐 **Auto Bit-Width** | 8/16/32/64 bit auto-range with manual lock, presets and step buttons |
 | 🔟 **Multi-Radix Display** | All 4 bases shown simultaneously (2×2 layout) |
 | 🧰 **Bit Tools** | Rotate, byte swap, bit-field extract/write, and sign extension from the Tools menu |
 | 🧠 **Expression Mode** | Parentheses, radix prefixes, and safe 64-bit arithmetic without `eval` |
@@ -144,8 +144,9 @@ python build.py --portable
 
 ```
 BitForge/
-├── bitforge.py       # Main application (~540 lines)
+├── bitforge.py       # Main application (~1450 lines)
 ├── build.py          # PyInstaller packaging script
+├── test_bitforge.py  # Test suite (187 checks) — run before every release
 ├── bitforge.ico      # Application icon (256×256)
 ├── run.bat           # Quick-launch script
 ├── README.md
@@ -163,7 +164,7 @@ BitForge/
 | **UI Framework** | [PyQt5](https://pypi.org/project/PyQt5/) |
 | **Widget Library** | [PyQt-SiliconUI](https://github.com/ChinaIceF/PyQt-SiliconUI) |
 | **Packaging** | PyInstaller (onedir / onefile) |
-| **Theme** | Hardcoded light theme (30+ color tokens) |
+| **Theme** | Light & dark themes, ~60 color tokens, choice remembered via QSettings |
 
 ---
 

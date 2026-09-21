@@ -1,7 +1,7 @@
 """
 BitForge — Programmer Calculator (Fast Edition)
 ================================================
-基于 PyQt5 + SiliconUI · 亮色主题 · 无主题切换 · 无图标加载
+基于 PyQt5 + SiliconUI · 亮/暗双主题 · 表达式模式 · 位工具
 
 运行: python bitforge.py
 调试: 设 BITFORGE_DEBUG=1 输出关键路径日志
@@ -30,6 +30,17 @@ DEBUG = os.environ.get("BITFORGE_DEBUG") == "1"
 def dlog(*args):
     if DEBUG:
         print("[BitForge]", *args)
+
+def make_app_icon():
+    """创建高 DPI 下清晰可辨的 BitForge 单色品牌图标。"""
+    pixmap=QPixmap(64,64); pixmap.fill(Qt.transparent)
+    painter=QPainter(pixmap); painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen); painter.setBrush(QColor("#53A9FD"))
+    painter.drawRoundedRect(QRectF(3,3,58,58),16,16)
+    painter.setPen(QColor("#ffffff")); painter.setFont(QFont("Segoe UI",29,QFont.Bold))
+    painter.drawText(QRectF(3,0,58,60),Qt.AlignCenter,"B")
+    painter.end()
+    return QIcon(pixmap)
 
 # =====================================================================
 #  数学工具
@@ -129,56 +140,35 @@ def evaluate_expression(text, b=64):
     return value
 
 # =====================================================================
-#  亮色主题配色 (单主题，无切换)
+#  主题配色 (LIGHT_C / DARK_C, _set_theme 切换)
 # =====================================================================
 C = {
-    "win":     "#f0f2f5",  # 窗口背景
-    "dsp_bg":  "#ffffff",  # 显示区背景
-    "dsp_fg":  "#101216",  # 显示文字
-    "dsp_neg": "#d01020",  # 负数
-    "aux_bg":  "#f6f7fa",
-    "aux_fg":  "#3a3d48",
-    "title":   "#181a20",
-    "sub":     "#687080",
-    "ver":     "#a0a8b8",
-    "hint":    "#98a0b0",
-    "tb_bg":   "#ffffff",
-    "tb_bdr":  "#d8dce4",
-    "rad_on":  "#6e40c9",
-    "rad_off": "#8890a0",
-    "num_bg":  "#e8ecf2",
-    "num_fg":  "#181a20",
-    "dim_bg":  "#dfe3ea",
-    "dim_fg":  "#b4bac6",
-    "toast_bg": "#3a2a5e",
-    "toast_fg": "#ffffff",
-    "op_bg":   "#dce8ff",
-    "op_fg":   "#2050b0",
-    "bit_bg":  "#efe8ff",
-    "bit_fg":  "#6020a0",
-    "eq_bg":   "#6838c8",
-    "eq_fg":   "#ffffff",
-    "ac_bg":   "#ffe8e6",
-    "ac_fg":   "#c02030",
-    "bs_bg":   "#fff0e0",
-    "bs_fg":   "#c06020",
-    "bit_on":  "#8040c0",
-    "bit_off": "#a8acb8",
+    "win":"#F0F2F5", "dsp_bg":"#FFFFFF", "dsp_fg":"#101216", "dsp_neg":"#FF6D7F",
+    "aux_bg":"#F6F7FA", "aux_fg":"#3A3D48", "title":"#181A20", "sub":"#687080",
+    "ver":"#8D96A6", "hint":"#98A0B0", "tb_bg":"#FFFFFF", "tb_bdr":"#D4D4D4",
+    "rad_on":"#AF92FB", "rad_off":"#8890A0", "num_bg":"#D4D4D4", "num_fg":"#181A20",
+    "dim_bg":"#E1E3E6", "dim_fg":"#A8AEB8", "toast_bg":"#53A9FD", "toast_fg":"#102C46",
+    "success":"#58C667", "warning":"#FFB45B", "lock":"#E8D836",
+    "op_bg":"#53A9FD", "op_fg":"#102C46", "op_active":"#53A9FD",
+    "bit_bg":"#C79579", "bit_fg":"#2D201A", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
+    "ac_bg":"#FF6D7F", "ac_fg":"#4A1019", "bs_bg":"#FFB45B", "bs_fg":"#4A2A00",
+    "bit_on":"#AF92FB", "bit_on_fg":"#261A3E", "bit_off":"#8C94A0",
 }
 LIGHT_C = C.copy()
 DARK_C = {**LIGHT_C,
-    "win":"#171a20", "dsp_bg":"#20242c", "dsp_fg":"#f3f5f8", "dsp_neg":"#ff7b7b",
-    "aux_bg":"#292f3a", "aux_fg":"#d9dee7", "title":"#f3f5f8", "sub":"#aab3c2",
-    "ver":"#7f8a9b", "hint":"#8590a1", "tb_bg":"#20242c", "tb_bdr":"#3d4655",
-    "rad_on":"#9b72e8", "rad_off":"#aab3c2", "num_bg":"#303744", "num_fg":"#f3f5f8",
-    "dim_bg":"#272d37", "dim_fg":"#687487", "toast_bg":"#b99aff", "toast_fg":"#1d172b",
-    "op_bg":"#273b5b", "op_fg":"#b8d4ff", "bit_bg":"#3a2e55", "bit_fg":"#d5c1ff",
-    "eq_bg":"#9b72e8", "ac_bg":"#4a2c34", "ac_fg":"#ffb8c0", "bs_bg":"#4a392b",
-    "bs_fg":"#ffd09b", "bit_on":"#aa7dff", "bit_off":"#687487",
+    "win":"#171A20", "dsp_bg":"#20242C", "dsp_fg":"#F3F5F8", "dsp_neg":"#FF6D7F",
+    "aux_bg":"#292F3A", "aux_fg":"#D9DEE7", "title":"#F3F5F8", "sub":"#AAB3C2",
+    "ver":"#7F8A9B", "hint":"#8590A1", "tb_bg":"#20242C", "tb_bdr":"#454E5D",
+    "rad_on":"#AF92FB", "rad_off":"#AAB3C2", "num_bg":"#3A414C", "num_fg":"#F3F5F8",
+    "dim_bg":"#272D37", "dim_fg":"#687487", "toast_bg":"#53A9FD", "toast_fg":"#102C46",
+    "op_bg":"#24517D", "op_fg":"#EAF6FF", "op_active":"#53A9FD",
+    "bit_bg":"#5B453A", "bit_fg":"#F1D8C8", "eq_bg":"#AF92FB", "eq_fg":"#261A3E",
+    "ac_bg":"#6A3540", "ac_fg":"#FFE7EA", "bs_bg":"#765020", "bs_fg":"#FFF0D0",
+    "bit_on":"#AF92FB", "bit_on_fg":"#261A3E", "bit_off":"#687487",
 }
-BH = 2    # border_height
-BR = 9    # border_radius
-IR = 7    # inner_radius
+BH = 0    # border_height：取消透明底边，避免下圆角被截断
+BR = 12   # border_radius：增强按键四角的视觉辨识
+IR = 12   # inner_radius
 
 # =====================================================================
 #  按钮
@@ -190,7 +180,7 @@ class BFButton(SiPushButtonRefactor):
         "bit":  ("bit_bg","bit_fg"),
         "eq":   ("eq_bg","eq_fg"),
         "ac":   ("ac_bg","ac_fg"),
-        "bs":   ("op_bg","op_fg"),
+        "bs":   ("bs_bg","bs_fg"),
     }
     DIMS  = {"d": ("dim_bg","dim_fg")}
     TIPS = {"AC":"全部清除","⌫":"退格","%":"取模","/":"除以","NOT":"按位取反",
@@ -202,12 +192,18 @@ class BFButton(SiPushButtonRefactor):
         self._k = self.STYLES[style]
         self._dim = False
         self._active = False
+        self._hover = False
+        self._pressed = False
         self._tip=self.TIPS.get(text,"")
         self.setText(text)
+        self.setAccessibleName(f"计算器按键 {text}")
+        self.setAccessibleDescription(self._tip or f"输入 {text}")
+        if self._tip: self.setToolTip(self._tip)
+        self.setFocusPolicy(Qt.StrongFocus)
         from siui.gui import SiFont
         self.setFont(SiFont.getFont(size=15))
-        self.setMinimumSize(58, 46)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumWidth(58); self.setFixedHeight(42)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._paint()
 
     def _paint(self):
@@ -221,7 +217,7 @@ class BFButton(SiPushButtonRefactor):
             sd.hover_color = QColor(0, 0, 0, 20)
         elif self._active:
             # 待定运算高亮: 主色填充
-            sd.button_color = QColor(C["rad_on"]); sd.text_color = QColor("#ffffff")
+            sd.button_color = QColor(C["op_active"]); sd.text_color = QColor(C["op_fg"])
             sd.hover_color = QColor(255, 255, 255, 55)
         else:
             k = self._k
@@ -233,14 +229,40 @@ class BFButton(SiPushButtonRefactor):
     def set_active(self, a: bool):
         if a != self._active: self._active = a; self._paint()
 
+    def paintEvent(self,e):
+        """单层圆角绘制，避免 SiUI 底边裁剪造成按键缺角。"""
+        rect=QRectF(self.rect()).adjusted(1,1,-1,-1)
+        p=QPainter(self); p.setRenderHint(QPainter.Antialiasing)
+        color=QColor(self.style_data.button_color)
+        if self._pressed: color=color.darker(112)
+        elif self._hover and not self._dim: color=color.lighter(106)
+        p.setPen(Qt.NoPen); p.setBrush(color)
+        p.drawRoundedRect(rect,BR,BR)
+        if self.hasFocus():
+            p.setPen(QColor(C["rad_on"])); p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(rect.adjusted(1,1,-1,-1),BR-2,BR-2)
+        p.setPen(self.style_data.text_color); p.setFont(self.font())
+        p.drawText(self.rect(),Qt.AlignCenter,self.text())
+        p.end()
+
     def enterEvent(self,e):
+        self._hover=True; self.update()
         super().enterEvent(e)
         if self._tip:
             QToolTip.showText(e.globalPos(),self._tip,self)
 
     def leaveEvent(self,e):
+        self._hover=False; self._pressed=False; self.update()
         super().leaveEvent(e)
         QToolTip.hideText()
+
+    def mousePressEvent(self,e):
+        self._pressed=True; self.update()
+        super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self,e):
+        self._pressed=False; self.update()
+        super().mouseReleaseEvent(e)
 
     def set_dimmed(self, d: bool):
         if d != self._dim: self._dim = d; self._paint()
@@ -260,6 +282,7 @@ class BitGlow(QWidget):
         self._value=0; self._bits=32; self.setFixedHeight(46)
         self._cache=None; self._bw_cache=None; self._dirty=True
         self._font=QFont("Consolas",9); self._mask=0
+        self.setMouseTracking(True)
 
     def set_val(self,value,bits):
         if self._value==value and self._bits==bits: return
@@ -274,8 +297,7 @@ class BitGlow(QWidget):
     def resizeEvent(self,e):
         self._dirty=True; super().resizeEvent(e)
 
-    def mouseReleaseEvent(self,e):
-        x,y=e.x(),e.y()
+    def _bit_at(self,x,y):
         w=max(self.width(),1); m=self.M; gap=self.GAP; ggap=self.GGAP
         cols=32 if self._bits>32 else self._bits
         grps=cols//8; tw=w-2*m
@@ -284,28 +306,43 @@ class BitGlow(QWidget):
 
         if self._bits>32:
             mid=self.height()//2
-            if y<2 or y>self.height()-8: return
+            if y<2 or y>self.height()-8: return None
             if y<mid:
-                if y<12 or y>12+(mid-18): return
+                if y<12 or y>12+(mid-18): return None
                 bit_off=32
             else:
                 ly=mid+2+10
-                if y<ly or y>ly+(mid-18): return
+                if y<ly or y>ly+(mid-18): return None
                 bit_off=0
         else:
-            if y<14 or y>14+2+(self.height()-18): return
+            if y<14 or y>14+2+(self.height()-18): return None
             bit_off=0
 
         grp_total=8*bw+7*gap+ggap; rel_x=x-m
-        if rel_x<0: return
+        if rel_x<0: return None
         gi=int(rel_x//grp_total); inner_x=rel_x-gi*grp_total
         bi=min(int(inner_x//(bw+gap)),7)
         bit_pos=(self._bits-1 if self._bits<=32 else 31)-(gi*8+bi)+bit_off
-        if bit_pos<0 or bit_pos>=self._bits: return
+        return bit_pos if 0<=bit_pos<self._bits else None
+
+    def mouseReleaseEvent(self,e):
+        bit_pos=self._bit_at(e.x(),e.y())
+        if bit_pos is None: return
         if e.button()==Qt.RightButton:
             self.valueChanged.emit(self._value & ~(1<<bit_pos))
         else:
             self.valueChanged.emit(self._value ^ (1<<bit_pos))
+
+    def mouseMoveEvent(self,e):
+        bit_pos=self._bit_at(e.x(),e.y())
+        if bit_pos is None: return
+        value=(self._value>>bit_pos)&1
+        masked=" · Mask" if (self._mask>>bit_pos)&1 else ""
+        QToolTip.showText(e.globalPos(),f"Bit {bit_pos} = {value}{masked}",self)
+
+    def leaveEvent(self,e):
+        QToolTip.hideText()
+        super().leaveEvent(e)
 
     def paintEvent(self,e):
         if self._dirty or self._cache is None:
@@ -335,23 +372,23 @@ class BitGlow(QWidget):
                         r=QRectF(x,y_off+10,bw,bh); txt=f"{bit_idx:>2d}"
                         if ch=="1":
                             # 外层光晕 (纯色半透明，无渐变)
-                            p.setBrush(QColor(140,80,200,40)); p.setPen(Qt.NoPen)
+                            glow=QColor(C["bit_on"]); glow.setAlpha(42); p.setBrush(glow); p.setPen(Qt.NoPen)
                             p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
                             p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                             p.drawRoundedRect(r,3,3)
-                            p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
+                            p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
                         else:
-                            p.setBrush(QColor("#e6e9f1")); p.setPen(Qt.NoPen)
+                            p.setBrush(QColor(C["aux_bg"])); p.setPen(Qt.NoPen)
                             p.drawRoundedRect(r,3,3)
                             p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
                         if self._mask and (self._mask>>bit_idx)&1:
-                            p.setPen(QColor("#e09030")); p.setBrush(Qt.NoBrush)
+                            p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
                             p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
                         x+=bw+gap; bit_idx-=1
                     x+=ggap-gap
             # 分隔线 + 位范围标注 (置于分隔线下方空隙)
-            p.setPen(QColor("#d8dce4")); p.drawLine(m,mid-1,w-m,mid-1)
-            p.setPen(QColor("#8890a0")); p.setFont(QFont("Consolas",7))
+            p.setPen(QColor(C["tb_bdr"])); p.drawLine(m,mid-1,w-m,mid-1)
+            p.setPen(QColor(C["sub"])); p.setFont(QFont("Consolas",7))
             p.drawText(QRectF(m,2,30,9),Qt.AlignLeft|Qt.AlignVCenter,"63")
             p.drawText(QRectF(w-m-30,2,30,9),Qt.AlignRight|Qt.AlignVCenter,"32")
             p.drawText(QRectF(m,mid+2,30,9),Qt.AlignLeft|Qt.AlignVCenter,"31")
@@ -369,15 +406,17 @@ class BitGlow(QWidget):
                     txt=f"{bit_idx:>2d}"; r=QRectF(x,y+2,bw,h-18)
                     if ch=="1":
                         # 外层光晕 (纯色半透明，无渐变)
-                        p.setBrush(QColor(140,80,200,40)); p.setPen(Qt.NoPen)
+                        glow=QColor(C["bit_on"]); glow.setAlpha(42); p.setBrush(glow); p.setPen(Qt.NoPen)
                         p.drawRoundedRect(r.adjusted(-2,-2,2,2),4,4)
                         p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
                         p.drawRoundedRect(r,3,3)
-                        p.setPen(QColor("#ffffff")); p.drawText(r,Qt.AlignCenter,txt)
+                        p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
                     else:
+                        p.setBrush(QColor(C["aux_bg"])); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r,3,3)
                         p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
                     if self._mask and (self._mask>>bit_idx)&1:
-                        p.setPen(QColor("#e09030")); p.setBrush(Qt.NoBrush)
+                        p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
                         p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
                     x+=bw+gap; bit_idx-=1
                 x+=ggap-gap
@@ -393,18 +432,21 @@ class BitForge(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{self.APP} · Programmer Calculator")
-        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__),"bitforge.ico")))
-        self.setMinimumSize(540, 660); self.resize(560, 700)
+        self._app_icon=make_app_icon()
+        self.setWindowIcon(self._app_icon)
+        self.setMinimumSize(540, 720); self.resize(560, 720)
         self.setFocusPolicy(Qt.StrongFocus)
         self._value=0; self._entry="0"; self._radix=10; self._bit_width=8
         self._new_entry=True; self._signed=False; self._locked=False; self._pending=None; self._error=False
         self._lock_style_state=None   # 上次刷新时的锁定状态 (样式 guard)
         self._aux_last={}             # 辅助行上次 HTML (setText guard)
         self._expr_last=""            # 表达式行上次文本
+        self._meta_last=""            # 显示区顶部状态行缓存
         self._display_value="0"       # 未分组的显示值，供复制和右键菜单使用
         self._display_font_size=None
         self._persist=True            # 关闭时写 QSettings (测试可关闭)
         self._history=[]              # 最近结果 (最新在前, 上限 10)
+        self._expression_history=[]   # 最近表达式（最新在前，上限 5）
         self._last_op=None            # 连按 = 重复上次运算
         self._settings=QSettings("BitForge","BitForge")
         self._restore_settings()
@@ -418,7 +460,7 @@ class BitForge(QMainWindow):
         self._value_anim.valueChanged.connect(self._ani_set_text)
         self._ani_last=""; self._ani_running=False
         self._value_anim.finished.connect(lambda: setattr(self,'_ani_running',False))
-        self._build_ui(); self._refresh_display()
+        self._build_ui(); self._update_layout_density(); self._refresh_display()
         self._apply_pin(self._pinned)
         g=self._settings.value("win/geometry")
         if g:
@@ -430,20 +472,41 @@ class BitForge(QMainWindow):
     def _ani_set_text(self,val):
         self._display.setText(f"{val:.0f}")
         self._ani_running=True
-        if val>=0: self._display.setTextColor(C["dsp_fg"])
+        if val>=0: self._set_display_color(C["dsp_fg"])
 
-    def _toast(self,msg):
+    def _toast(self,msg,kind="info"):
+        colors={
+            "info":(C["toast_bg"],C["toast_fg"]),
+            "success":(C["success"],"#10351D"),
+            "warning":(C["warning"],"#4A2A00"),
+            "error":(C["dsp_neg"],"#4A1019"),
+        }
+        bg,fg=colors.get(kind,colors["info"])
+        self._toast_lb.setStyleSheet(f"background:{bg};color:{fg};border-radius:14px;padding:5px 16px 6px 16px;font-size:12px;font-weight:700;")
         self._toast_lb.setText(msg)
         self._toast_lb.adjustSize()
-        d=self._display.mapTo(self.centralWidget(),QPoint(0,0))
-        self._toast_lb.move(d.x()+self._display.width()-self._toast_lb.width()-18, d.y()+8)
+        d=self._toolbar.mapTo(self.centralWidget(),QPoint(0,0))
+        self._toast_lb.move(d.x()+self._toolbar.width()-self._toast_lb.width()-10, d.y()+4)
         self._toast_lb.raise_()
         self._toast_lb.show()
         self._toast_timer.start(1600)
+        dlog("toast", kind, msg)
+
+    def _menu(self):
+        m=QMenu(self)
+        m.setStyleSheet(f"QMenu{{background:{C['dsp_bg']};color:{C['title']};border:1px solid {C['tb_bdr']};border-radius:10px;padding:6px;}}"
+                        f"QMenu::item{{padding:7px 26px 7px 12px;border-radius:6px;}}"
+                        f"QMenu::item:selected{{background:{C['aux_bg']};color:{C['rad_on']};}}"
+                        f"QMenu::separator{{height:1px;background:{C['tb_bdr']};margin:5px 8px;}}")
+        return m
 
     # ===== 窗口样式 =====
     def _set_style(self):
         self.setStyleSheet(f"QMainWindow{{background:{C['win']};}}")
+
+    def _set_display_color(self,color):
+        self._display.setTextColor(color)
+        self._display.setStyleSheet(f"background:transparent;color:{color};border:none;")
 
     # ===== 构建 UI =====
     def _build_ui(self):
@@ -451,33 +514,14 @@ class BitForge(QMainWindow):
         from siui.gui import SiFont
         cw=QWidget(self); self.setCentralWidget(cw)
         v=QVBoxLayout(cw); v.setContentsMargins(18,12,18,16); v.setSpacing(8)
-
-        # 标题栏
-        h=QWidget(); hl=QHBoxLayout(h); hl.setContentsMargins(0,0,0,0)
-        self._title_label=SiLabelRefactor(self)
-        self._title_label.setText(f"<b>{self.APP}</b>  <span style='color:{C['sub']};font-weight:400'>Programmer</span>")
-        self._title_label.setFont(SiFont.getFont(size=14)); self._title_label.setTextColor(C["title"])
-        hl.addWidget(self._title_label); hl.addStretch()
-        self._version_label=SiLabelRefactor(self); self._version_label.setText(self.VER)
-        self._version_label.setFont(SiFont.getFont(size=10)); self._version_label.setTextColor(C["ver"]); hl.addWidget(self._version_label)
-        self._version_label.setCursor(Qt.PointingHandCursor)
-        self._version_label.mouseReleaseEvent = lambda e: self._show_about() if e.button()==Qt.LeftButton else None
-        self._help_btn=QPushButton("?")
-        self._help_btn.setFixedSize(24,24); self._help_btn.setFont(self._si_font(12))
-        self._help_btn.setToolTip("快捷键与操作说明 (F1)")
-        self._help_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;font-weight:600;}}QPushButton:hover{{background:{C['aux_bg']};color:{C['title']};}}")
-        self._help_btn.clicked.connect(self._show_help)
-        hl.addWidget(self._help_btn)
-        self._theme_btn=QPushButton("◐")
-        self._theme_btn.setFixedSize(24,24); self._theme_btn.setFont(self._si_font(12))
-        self._theme_btn.setToolTip("切换亮色 / 深色主题")
-        self._theme_btn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;}}QPushButton:hover{{background:{C['aux_bg']};color:{C['title']};}}")
-        self._theme_btn.clicked.connect(self._show_theme_menu)
-        hl.addWidget(self._theme_btn)
-        v.addWidget(h)
+        self._root_layout=v
+        self._compact_layout=None
 
         # 进制栏
-        tb=QWidget(); tbl=QHBoxLayout(tb); tbl.setContentsMargins(0,0,0,0)
+        tb=QFrame(); tb.setObjectName("calcToolbar")
+        self._toolbar=tb
+        tb.setStyleSheet(f"QFrame#calcToolbar{{background:{C['tb_bg']};border:1px solid {C['tb_bdr']};border-radius:12px;}}")
+        tbl=QHBoxLayout(tb); tbl.setContentsMargins(8,5,8,5)
         self._radix_buttons={}; rf=QFrame()
         rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:10px;border:1px solid {C['tb_bdr']};}}")
         rl=QHBoxLayout(rf); rl.setContentsMargins(3,3,3,3); rl.setSpacing(0)
@@ -548,27 +592,22 @@ class BitForge(QMainWindow):
         self._bit_width_lb.setToolTip("点击选择位宽；+/- 微调并锁定")
         self._bit_width_lb.mouseReleaseEvent = lambda e: self._show_bit_width_menu() if e.button()==Qt.LeftButton else None
         tbl.addWidget(self._bit_width_lb)
-        tbl.addSpacing(7)
-        tbl.addWidget(self._vsep())
-        tbl.addSpacing(7)
-        from siui.components.widgets.line_edit import SiLineEdit
-        self._mask_le=SiLineEdit(self)
-        self._mask_le.lineEdit().setPlaceholderText("Mask")
-        self._mask_le.lineEdit().setToolTip("支持 0x、0b、0o、十进制或无前缀十六进制")
-        self._mask_le.setFixedWidth(86)
-        self._mask_le.lineEdit().textChanged.connect(self._on_mask_changed)
-        tbl.addWidget(self._mask_le)
         v.addWidget(tb)
 
         # 显示
-        self._display=SiLabelRefactor(self); self._display.setMinimumHeight(92)
-        self._display.setBackgroundColor(C["dsp_bg"]); self._display.setBorderRadius(16)
+        self._display_card=QFrame(); self._display_card.setObjectName("displayCard")
+        self._display_card.setStyleSheet(f"QFrame#displayCard{{background:{C['dsp_bg']};border:1px solid {C['tb_bdr']};border-radius:18px;}}")
+        display_layout=QVBoxLayout(self._display_card); display_layout.setContentsMargins(0,0,0,0)
+        self._display=SiLabelRefactor(self); self._display.setFixedHeight(84)
+        self._display.setBackgroundColor(C["dsp_bg"]); self._display.setBorderRadius(18)
         self._display.setAlignment(Qt.AlignRight|Qt.AlignBottom)
         self._display.setFont(SiFont.getFont(size=34)); self._display.setTextColor(C["dsp_fg"])
-        self._display.setText("0"); self._display.setContentsMargins(16,12,16,12); v.addWidget(self._display)
+        self._display.setText("0"); self._display.setContentsMargins(18,12,18,10)
+        self._set_display_color(C["dsp_fg"])
+        display_layout.addWidget(self._display); v.addWidget(self._display_card)
         dsp_shadow=QGraphicsDropShadowEffect(self)
         dsp_shadow.setBlurRadius(18); dsp_shadow.setOffset(0,3); dsp_shadow.setColor(QColor(80,90,120,55))
-        self._display.setGraphicsEffect(dsp_shadow)
+        self._display_card.setGraphicsEffect(dsp_shadow)
         rf_shadow=QGraphicsDropShadowEffect(self)
         rf_shadow.setBlurRadius(10); rf_shadow.setOffset(0,2); rf_shadow.setColor(QColor(80,90,120,35))
         rf.setGraphicsEffect(rf_shadow)
@@ -577,23 +616,48 @@ class BitForge(QMainWindow):
         self._expr_label.setStyleSheet(f"color:{C['sub']};font-size:13px;font-weight:600;")
         self._expr_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self._expr_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._display_meta_label=QLabel(self._display)
+        self._display_meta_label.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.6px;")
+        self._display_meta_label.setAlignment(Qt.AlignLeft|Qt.AlignTop)
+        self._display_meta_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._display.installEventFilter(self)
         self._display.setContextMenuPolicy(Qt.CustomContextMenu)
         self._display.customContextMenuRequested.connect(self._show_display_menu)
 
         # 独立表达式栏：不改变传统按键计算状态
-        expr_bar=QWidget(); expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(2,0,2,0); expr_l.setSpacing(6)
-        expr_tag=QLabel("Expr"); expr_tag.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:600;")
+        expr_bar=QFrame(); expr_bar.setObjectName("expressionBar")
+        expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:9px;}}")
+        expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(10,3,5,3); expr_l.setSpacing(7)
+        expr_tag=QLabel("EXPR"); expr_tag.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
         self._expression_input=QLineEdit(self)
         self._expression_input.setPlaceholderText("(0x20 << 3) | 0x07")
         self._expression_input.setClearButtonEnabled(True)
         self._expression_input.setToolTip("支持括号、0x/0b/0o 和 + - * / % & | ^ ~ << >>")
-        self._expression_input.setStyleSheet(f"QLineEdit{{background:{C['aux_bg']};color:{C['title']};border:1px solid {C['tb_bdr']};border-radius:7px;padding:4px 8px;}}QLineEdit:focus{{border-color:{C['rad_on']};}}")
+        self._expression_input.setStyleSheet(f"QLineEdit{{background:transparent;color:{C['title']};border:none;padding:4px 3px;}}QLineEdit:focus{{color:{C['title']};}}")
         self._expression_input.returnPressed.connect(self._evaluate_expression)
-        expr_go=QPushButton("="); expr_go.setFixedSize(30,26); expr_go.clicked.connect(self._evaluate_expression)
+        self._expression_input.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._expression_input.customContextMenuRequested.connect(self._show_expression_menu)
+        expr_go=QPushButton("="); expr_go.setFixedSize(32,28); expr_go.clicked.connect(self._evaluate_expression)
         expr_go.setToolTip("计算表达式")
+        expr_go.setStyleSheet(f"QPushButton{{background:{C['eq_bg']};color:{C['eq_fg']};border:none;border-radius:6px;font-weight:700;}}QPushButton:hover{{background:{C['rad_on']};}}")
         expr_l.addWidget(expr_tag); expr_l.addWidget(self._expression_input,1); expr_l.addWidget(expr_go)
         v.addWidget(expr_bar)
+
+        # Bit 与掩码：原生输入框随主题着色，并保留清除操作。
+        bit_head=QWidget(); bit_head_l=QHBoxLayout(bit_head); bit_head_l.setContentsMargins(2,2,2,0); bit_head_l.setSpacing(7)
+        bit_title=QLabel("BIT MAP"); bit_title.setStyleSheet(f"color:{C['sub']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
+        mask_title=QLabel("MASK"); mask_title.setStyleSheet(f"color:{C['sub']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
+        self._mask_state_label=QLabel("OFF")
+        self._mask_state_label.setFixedWidth(28); self._mask_state_label.setAlignment(Qt.AlignCenter)
+        self._mask_le=QLineEdit(self)
+        self._mask_le.setPlaceholderText("0x…")
+        self._mask_le.setClearButtonEnabled(True)
+        self._mask_le.setFixedWidth(154)
+        self._mask_le.setToolTip("支持 0x、0b、0o、十进制或无前缀十六进制")
+        self._mask_le.textChanged.connect(self._on_mask_changed)
+        self._set_mask_feedback("off")
+        bit_head_l.addWidget(bit_title); bit_head_l.addStretch(); bit_head_l.addWidget(mask_title); bit_head_l.addWidget(self._mask_state_label); bit_head_l.addWidget(self._mask_le)
+        v.addWidget(bit_head)
 
         # Bit
         self._bit_indicator=BitGlow(self); v.addWidget(self._bit_indicator)
@@ -607,10 +671,10 @@ class BitForge(QMainWindow):
             for nm in row_nm:
                 lb=QLabel(self)
                 lb.setTextFormat(Qt.RichText)
-                lb.setStyleSheet(f"background:{C['aux_bg']};border-radius:8px;padding:0 12px 0 12px;")
+                lb.setStyleSheet(f"background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:9px;padding:0 12px 0 12px;")
                 fsize=10 if nm=="BIN" else 12
                 lb.setFont(SiFont.getFont(size=fsize))
-                lb.setMinimumHeight(30); lb.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+                lb.setMinimumHeight(34); lb.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
                 lb.setToolTip("点击复制")
                 lb.setCursor(Qt.PointingHandCursor)
                 lb.mouseReleaseEvent = lambda e, name=nm: self._copy_radix(name) if e.button()==Qt.LeftButton else None
@@ -642,7 +706,9 @@ class BitForge(QMainWindow):
         self._buttons=[]; self._digit_btns={}; self._op_btns={}
         OP_TXT={"+":"add","-":"sub","*":"mul","/":"div","%":"mod","NOT":"not",
                 "AND":"and","OR":"or","XOR":"xor","<<":"lsh",">>":"rsh"}
-        grid=QWidget(); gl=QVBoxLayout(grid); gl.setContentsMargins(0,0,0,0); gl.setSpacing(5)
+        grid=QWidget(); self._keypad_grid=grid
+        grid.setFixedHeight(6*42+5*5); grid.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
+        gl=QVBoxLayout(grid); gl.setContentsMargins(0,0,0,0); gl.setSpacing(5)
         for rd in rows:
             rw=QWidget(); rl=QHBoxLayout(rw); rl.setContentsMargins(0,0,0,0); rl.setSpacing(5)
             for txt,sty,cb in rd:
@@ -651,12 +717,13 @@ class BitForge(QMainWindow):
                 if txt in "0123456789ABCDEF": self._digit_btns[txt]=btn
                 if txt in OP_TXT: self._op_btns[OP_TXT[txt]]=btn
             gl.addWidget(rw)
-        v.addWidget(grid,1)
+        v.addWidget(grid)
 
         # 提示
         self._hint_label=SiLabelRefactor(self)
         self._hint_label.setText(self.HINT)
         self._hint_label.setFont(SiFont.getFont(size=10)); self._hint_label.setTextColor(C["hint"])
+        self._hint_label.setStyleSheet(f"color:{C['hint']};")
         self._hint_label.setAlignment(Qt.AlignCenter); self._hint_label.setFixedHeight(18)
         v.addWidget(self._hint_label)
 
@@ -678,9 +745,29 @@ class BitForge(QMainWindow):
     def eventFilter(self,obj,ev):
         if obj is self._display and ev.type()==QEvent.Resize:
             m=self._display.contentsMargins()
+            self._display_meta_label.setGeometry(m.left(), 5,
+                self._display.width()-m.left()-m.right(), 18)
             self._expr_label.setGeometry(m.left(), 0,
-                self._display.width()-m.left()-m.right(), self._display.height()-6)
+                self._display.width()-m.left()-m.right(), self._display.height()-3)
         return super().eventFilter(obj,ev)
+
+    def resizeEvent(self,e):
+        if not all(hasattr(self,name) for name in ("_root_layout","_tools_btn","_mask_le","_hint_label")):
+            return super().resizeEvent(e)
+        self._update_layout_density()
+        super().resizeEvent(e)
+
+    def _update_layout_density(self):
+        compact=self.width()<620
+        if compact!=getattr(self,"_compact_layout",None):
+            self._compact_layout=compact
+            self._root_layout.setContentsMargins(12 if compact else 18,10,12 if compact else 18,14)
+            self._tools_btn.setText("⋯" if compact else "工具")
+            self._tools_btn.setFixedWidth(28 if compact else 38)
+            self._mask_le.setFixedWidth(118 if compact else 154)
+            self._hint_label.setText("F1 帮助 · F2 表达式 · Ctrl+C/V" if compact else self.HINT)
+            self._aux_last={}
+            dlog("layout", "compact" if compact else "regular", "width", self.width())
 
     # ===== 设置记忆 =====
     def _restore_settings(self):
@@ -698,22 +785,16 @@ class BitForge(QMainWindow):
     def _apply_theme_colors(self):
         C.clear(); C.update(DARK_C if self._theme=="dark" else LIGHT_C)
 
-    def _show_theme_menu(self):
-        m=QMenu(self)
-        light=m.addAction("亮色主题")
-        dark=m.addAction("深色主题")
-        act=m.exec_(self._theme_btn.mapToGlobal(self._theme_btn.rect().bottomLeft()))
-        if act==light: self._set_theme("light")
-        elif act==dark: self._set_theme("dark")
-
     def _set_theme(self,theme):
         if theme==self._theme: return
         expression=self._expression_input.text()
+        mask=self._mask_le.text()
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
-        self._aux_last={}; self._expr_last=""; self._lock_style_state=None; self._display_font_size=None
-        self._build_ui(); self._expression_input.setText(expression); self._refresh_display()
+        self._aux_last={}; self._expr_last=""; self._meta_last=""; self._lock_style_state=None; self._display_font_size=None
+        self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
+        self._update_layout_density(); self._refresh_display()
         self._toast("深色主题" if theme=="dark" else "亮色主题")
         dlog("theme set:", theme)
 
@@ -742,7 +823,7 @@ class BitForge(QMainWindow):
             if self.isVisible(): self.show()
 
     def _show_display_menu(self,pos):
-        m=QMenu(self)
+        m=self._menu()
         cur=self._display_value
         a_cur=m.addAction(f"复制  {cur}")
         m.addSeparator()
@@ -765,7 +846,7 @@ class BitForge(QMainWindow):
         except: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
     def _radix_btn_style(self,on):
-        if on: return (f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;"
+        if on: return (f"QPushButton{{background:{C['rad_on']};color:{C['eq_fg']};border:none;"
                        f"border-radius:7px;font-weight:600;}}"
                        f"QPushButton:hover{{background:{C['rad_on']};}}")
         return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;"
@@ -775,7 +856,7 @@ class BitForge(QMainWindow):
     @staticmethod
     def _lock_btn_style(checked):
         if checked:
-            return (f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;"
+            return (f"QPushButton{{background:{C['lock']};color:#3A3200;border:none;"
                     f"border-radius:5px;font-size:12px;}}")
         return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;"
                 f"border-radius:5px;font-size:12px;}}"
@@ -815,7 +896,7 @@ class BitForge(QMainWindow):
                 self._refresh_display(); self._toast(f"位宽 {b}b"); return
 
     def _show_bit_width_menu(self):
-        m=QMenu(self)
+        m=self._menu()
         acts={b:m.addAction(f"{b} bit") for b in BIT_MASKS}
         act=m.exec_(self._bit_width_lb.mapToGlobal(self._bit_width_lb.rect().bottomLeft()))
         if act is not None:
@@ -838,7 +919,7 @@ class BitForge(QMainWindow):
         d.setFixedSize(380,280)
         d.setStyleSheet(f"QDialog{{background:{C['dsp_bg']}}}")
         l=QVBoxLayout(d); l.setContentsMargins(24,20,24,20)
-        ti=QLabel("<b style='font-size:20px;color:#6e40c9;'>BitForge</b>")
+        ti=QLabel(f"<b style='font-size:20px;color:{C['op_active']};'>BitForge</b>")
         ti.setAlignment(Qt.AlignCenter)
         l.addWidget(ti)
         vl=QLabel(f"v{self.VER}" if not self.VER.startswith("v") else self.VER)
@@ -847,7 +928,7 @@ class BitForge(QMainWindow):
         for t in ["Programmer Calculator",""]:
             lb=QLabel(t); lb.setAlignment(Qt.AlignCenter); lb.setStyleSheet(f"font-size:12px;color:{C['sub']};")
             l.addWidget(lb)
-        gl=QLabel("<a href='#' style='color:#6e40c9;font-size:13px;text-decoration:none;'>github.com/Hush-xv/BitForge</a>")
+        gl=QLabel(f"<a href='#' style='color:{C['op_active']};font-size:13px;text-decoration:none;'>github.com/Hush-xv/BitForge</a>")
         gl.setAlignment(Qt.AlignCenter); gl.setCursor(Qt.PointingHandCursor)
         gl.linkActivated.connect(lambda: __import__('webbrowser').open("https://github.com/Hush-xv/BitForge"))
         l.addWidget(gl); l.addStretch()
@@ -860,7 +941,7 @@ class BitForge(QMainWindow):
         d.setFixedSize(430,330)
         d.setStyleSheet(f"QDialog{{background:{C['dsp_bg']};}}")
         l=QVBoxLayout(d); l.setContentsMargins(24,20,24,20); l.setSpacing(10)
-        title=QLabel("<b style='font-size:18px;color:#6e40c9;'>快速使用</b>")
+        title=QLabel(f"<b style='font-size:18px;color:{C['op_active']};'>快速使用</b>")
         title.setAlignment(Qt.AlignCenter); l.addWidget(title)
         text=("<b>输入：</b>0–9，HEX 模式可输入 A–F；Ctrl+V 自动识别常见进制。<br>"
               "<b>运算：</b>+ − × ÷ %、AND / OR / XOR、~、&lt;&lt; / &gt;&gt;。<br>"
@@ -877,15 +958,15 @@ class BitForge(QMainWindow):
 
     @staticmethod
     def _sign_style(on):
-        if on: return (f"QPushButton{{background:{C['rad_on']};color:#fff;border:none;border-radius:7px;}}"
-                       f"QPushButton:hover{{background:{C['rad_on']};}}")
+        if on: return (f"QPushButton{{background:{C['op_active']};color:{C['op_fg']};border:none;border-radius:7px;}}"
+                       f"QPushButton:hover{{background:{C['op_active']};}}")
         return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:7px;}}"
                 f"QPushButton:hover{{color:{C['title']};}}")
 
     # ===== 复制 / 粘贴 / 历史 =====
     def _copy_text(self,text,label):
         QApplication.clipboard().setText(text)
-        self._toast(f"已复制 {label} {text}")
+        self._toast(f"已复制 {label} {text}","success")
         dlog("copy", label, text)
 
     def _copy_current(self):
@@ -898,8 +979,8 @@ class BitForge(QMainWindow):
         self._error=True; self._pending=None; self._last_op=None
         self._value_anim.stop(); self._ani_running=False
         self._set_active_op(None)
-        self._display.setText("Error"); self._display.setTextColor(C["dsp_neg"])
-        self._toast(message)
+        self._display.setText("Error"); self._set_display_color(C["dsp_neg"])
+        self._toast(message,"error")
         dlog("calculation error:", message)
 
     def _paste(self):
@@ -916,11 +997,11 @@ class BitForge(QMainWindow):
             elif text[1:] and any(c in "abcdefABCDEF" for c in text[1:]): v=int(text,16)
             else: v=int(text,10)
         except ValueError:
-            self._toast("无法识别剪贴板数值")
+            self._toast("无法识别剪贴板数值","warning")
             dlog("paste parse failed:", text)
             return
         self._load_value(v)
-        self._toast(f"已粘贴 {text}")
+        self._toast(f"已粘贴 {text}","success")
         dlog("paste", text, "->", hex(self._value))
 
     def _evaluate_expression(self):
@@ -928,7 +1009,7 @@ class BitForge(QMainWindow):
         bits=self._bit_width if self._locked else 64
         try: value=evaluate_expression(text,bits)
         except ValueError as exc:
-            self._toast(f"表达式错误：{exc}")
+            self._toast(f"表达式错误：{exc}","error")
             dlog("expression failed:", text, exc)
             return
         if self._error: self._error=False
@@ -936,8 +1017,33 @@ class BitForge(QMainWindow):
         self._value=clamp(value,self._bit_width); self._entry=self._format_entry(self._value)
         self._new_entry=True; self._pending=None; self._last_op=None
         self._set_active_op(None); self._remember(self._value); self._refresh_display()
-        self._toast("表达式已计算")
+        self._remember_expression(text)
+        self._toast("表达式已计算","success")
         dlog("expression", text, "->", hex(self._value), "bits", self._bit_width)
+
+    def _remember_expression(self,text):
+        if text in self._expression_history: self._expression_history.remove(text)
+        self._expression_history.insert(0,text)
+        del self._expression_history[5:]
+        dlog("expression history", len(self._expression_history), text)
+
+    def _show_expression_menu(self,pos):
+        m=self._expression_input.createStandardContextMenu()
+        m.setStyleSheet(self._menu().styleSheet())
+        if self._expression_history:
+            m.addSeparator()
+            actions=[m.addAction(f"最近：{text}") for text in self._expression_history]
+            a_clear=m.addAction("清除表达式历史")
+        else:
+            actions=[]; a_clear=None
+        act=m.exec_(self._expression_input.mapToGlobal(pos))
+        if act in actions:
+            self._expression_input.setText(self._expression_history[actions.index(act)])
+            self._expression_input.setFocus()
+            self._toast("已载入最近表达式")
+        elif act==a_clear:
+            self._expression_history=[]
+            self._toast("表达式历史已清除","success")
 
     def _load_value(self,v):
         if self._error: self._clear_all()
@@ -957,7 +1063,7 @@ class BitForge(QMainWindow):
         if not self._history:
             self._toast("暂无历史")
             return
-        m=QMenu(self)
+        m=self._menu()
         acts=[]
         for v in self._history:
             acts.append(m.addAction(f"{v}   0x{v:X}"))
@@ -966,13 +1072,20 @@ class BitForge(QMainWindow):
         act=m.exec_(self._hist_btn.mapToGlobal(self._hist_btn.rect().bottomLeft()))
         if act is None: return
         if act==a_clr:
-            self._history=[]; self._toast("历史已清空")
+            self._history=[]; self._toast("历史已清空","success")
         else:
             self._load_value(self._history[acts.index(act)])
-            self._toast(f"已载入 0x{self._value:X}")
+            self._toast(f"已载入 0x{self._value:X}","success")
 
     def _show_tools(self):
-        m=QMenu(self)
+        m=self._menu()
+        state=m.addAction(f"当前：{self._bit_width} bit · {'深色' if self._theme=='dark' else '亮色'}主题")
+        state.setEnabled(False)
+        m.addSeparator()
+        a_ones=m.addAction(f"当前 {self._bit_width} bit 全置 1")
+        a_zero=m.addAction("当前位宽清零")
+        a_invert=m.addAction("当前位宽取反")
+        m.addSeparator()
         a_rol=m.addAction("循环左移  ROL")
         a_ror=m.addAction("循环右移  ROR")
         a_swap=m.addAction("字节交换  Byte Swap")
@@ -982,12 +1095,26 @@ class BitForge(QMainWindow):
         sign_menu=m.addMenu("符号扩展")
         sign_actions={b:sign_menu.addAction(f"从 {b} bit 扩展")
                       for b in (8,16,32) if b<self._bit_width}
+        m.addSeparator()
+        appearance=m.addMenu("外观")
+        a_light=appearance.addAction("亮色主题")
+        a_dark=appearance.addAction("深色主题")
+        m.addSeparator()
+        a_help=m.addAction("帮助  F1")
+        a_about=m.addAction(f"关于 BitForge  {self.VER}")
         act=m.exec_(self._tools_btn.mapToGlobal(self._tools_btn.rect().bottomLeft()))
-        if act==a_rol: self._apply_operator("rol")
+        if act==a_ones: self._apply_tool_value(BIT_MASKS[self._bit_width],"全置 1")
+        elif act==a_zero: self._apply_tool_value(0,"清零")
+        elif act==a_invert: self._apply_tool_value(~self._value,"按位取反")
+        elif act==a_rol: self._apply_operator("rol")
         elif act==a_ror: self._apply_operator("ror")
         elif act==a_swap: self._apply_tool_value(byte_swap(self._value,self._bit_width),"字节交换")
         elif act==a_extract: self._extract_field()
         elif act==a_write: self._write_field()
+        elif act==a_light: self._set_theme("light")
+        elif act==a_dark: self._set_theme("dark")
+        elif act==a_help: self._show_help()
+        elif act==a_about: self._show_about()
         else:
             for b,a in sign_actions.items():
                 if act==a:
@@ -999,7 +1126,7 @@ class BitForge(QMainWindow):
         self._value=clamp(value,64); self._locked=True; self._new_entry=True
         self._entry=self._format_entry(self._value); self._pending=None; self._last_op=None
         self._set_active_op(None); self._remember(self._value); self._refresh_display()
-        self._toast(f"{label} · {self._bit_width}b")
+        self._toast(f"{label} · {self._bit_width}b","success")
         dlog("tool", label, "->", hex(self._value), "bits", self._bit_width)
 
     def _field_range(self):
@@ -1209,21 +1336,31 @@ class BitForge(QMainWindow):
             self._display_font_size=font_size; self._display.setFont(self._si_font(font_size))
         self._display.setToolTip(f"完整值：{raw}\n右键可按进制复制")
         s=to_signed(u,self._bit_width)
-        self._display.setTextColor(C["dsp_neg"] if (s<0 and self._radix==10 and self._signed) else C["dsp_fg"])
+        self._set_display_color(C["dsp_neg"] if (s<0 and self._radix==10 and self._signed) else C["dsp_fg"])
         self._bit_indicator.set_val(self._value,self._bit_width)
         bw_text=f"{self._bit_width}b"
         if self._bit_width_lb.text()!=bw_text: self._bit_width_lb.setText(bw_text)
+        radix_name={16:"HEX",10:"DEC",8:"OCT",2:"BIN"}[self._radix]
+        state="SIGNED" if self._signed else "UNSIGNED"
+        width_state="LOCKED" if self._locked else "AUTO"
+        meta=f"{radix_name}   ·   {self._bit_width} BIT   ·   {state}   ·   {width_state}"
+        if meta!=self._meta_last:
+            self._meta_last=meta
+            self._display_meta_label.setText(meta)
         # 位宽标签/锁按钮样式 — 仅锁定状态变化时刷新, 避免每次按键重刷样式表
         if self._locked != self._lock_style_state:
             self._lock_style_state=self._locked
             self._lock_btn.setChecked(self._locked)
             self._lock_btn.setStyleSheet(self._lock_btn_style(self._locked))
-            self._bit_width_lb.setStyleSheet(f"color:{C['rad_on'] if self._locked else C['sub']};padding:0 6px 0 2px;")
+            self._bit_width_lb.setStyleSheet(f"color:{C['lock'] if self._locked else C['sub']};padding:0 6px 0 2px;")
         # 多进制辅助行 — 内容不变时跳过 setText, 避免富文本重复解析
         for name in ("DEC","HEX","OCT","BIN"):
-            html=(f"<span style='color:{C['rad_on']};font-size:9px;font-weight:600'>{name}</span>"
+            active={"HEX":16,"DEC":10,"OCT":8,"BIN":2}[name]==self._radix
+            name_color=C["rad_on"] if active else C["sub"]
+            value_color=C["title"] if active else C["aux_fg"]
+            html=(f"<span style='color:{name_color};font-size:9px;font-weight:700'>{name}</span>"
                   f"&nbsp;&nbsp;"
-                  f"<span style='color:{C['title']};font-weight:600'>{self._aux_value(name)}</span>")
+                  f"<span style='color:{value_color};font-weight:{'700' if active else '600'}'>{self._aux_value(name)}</span>")
             if self._aux_last.get(name)!=html:
                 self._aux_last[name]=html
                 self._aux_labels[name].setText(html)
@@ -1246,9 +1383,26 @@ class BitForge(QMainWindow):
         dlog("bit click ->", hex(self._value))
         self._refresh_display()
 
+    def _set_mask_feedback(self,state,detail=""):
+        le=self._mask_le
+        if state=="active":
+            color=C["warning"]
+            state_text="ON"
+        elif state=="error":
+            color=C["dsp_neg"]
+            state_text="ERR"
+        else:
+            color=C["tb_bdr"]
+            state_text="OFF"
+        le.setStyleSheet(f"QLineEdit{{min-height:24px;border:1px solid {color};border-radius:6px;padding:1px 24px 1px 8px;color:{C['title']};background:{C['aux_bg']};font-family:Consolas;}}QLineEdit:focus{{border-color:{C['rad_on']};background:{C['dsp_bg']};}}")
+        self._mask_state_label.setText(state_text)
+        self._mask_state_label.setStyleSheet(f"color:{color};font-size:9px;font-weight:700;")
+        le.setToolTip(detail or "支持 0x、0b、0o、十进制或无前缀十六进制")
+
     def _on_mask_changed(self,text):
         if not text.strip():
             self._bit_indicator.set_mask(0)
+            self._set_mask_feedback("off")
             return
         t=text.strip()
         try:
@@ -1258,9 +1412,12 @@ class BitForge(QMainWindow):
             elif any(c in "abcdefABCDEF" for c in t): m=int(t,16)
             else: m=int(t,10)
             self._bit_indicator.set_mask(clamp(m,64))
+            self._set_mask_feedback("active",f"Mask active: 0x{clamp(m,64):X}")
+            dlog("mask active:",hex(clamp(m,64)))
         except ValueError:
             dlog("mask parse failed:", text)
-            self._toast("掩码格式: 0x / 0b / 0o / 十进制")
+            self._set_mask_feedback("error","掩码格式: 0x / 0b / 0o / 十进制")
+            self._toast("掩码格式: 0x / 0b / 0o / 十进制","warning")
 
     # ===== 键盘 =====
     def keyPressEvent(self,e:QKeyEvent):
@@ -1287,10 +1444,8 @@ class BitForge(QMainWindow):
 # =====================================================================
 def main():
     app=QApplication(sys.argv); app.setApplicationName("BitForge")
+    app.setWindowIcon(make_app_icon())
     w=BitForge(); w.show()
-    # 确保应用图标
-    ico=QIcon(os.path.join(os.path.dirname(__file__),"bitforge.ico"))
-    app.setWindowIcon(ico)
     # 立即释放图标包内存 (~50MB, 5410 个 SVG)
     from siui.core import SiGlobal
     if hasattr(SiGlobal.siui,'iconpack') and hasattr(SiGlobal.siui.iconpack,'clear'):
