@@ -26,11 +26,23 @@
 | 🔢 **Radix Switch** | HEX / DEC / OCT / BIN — input in any base |
 | 📐 **Auto Bit-Width** | 8/16/32/64 bit auto-range, increases only, AC to reset |
 | 🔟 **Multi-Radix Display** | All 4 bases shown simultaneously (2×2 layout) |
+| 🧰 **Bit Tools** | Rotate, byte swap, bit-field extract/write, and sign extension from the Tools menu |
+| 🧠 **Expression Mode** | Parentheses, radix prefixes, and safe 64-bit arithmetic without `eval` |
 | 💡 **Bit Indicator** | Bit-level visualization with numbered positions |
-| 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 |
+| 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 (right-click to clear) |
+| 📋 **One-Click Copy** | `Ctrl+C` copies display; click a DEC/HEX/OCT/BIN row to copy that radix; right-click display for a copy menu |
+| 🧩 **Visible Bit Cells** | Every bit renders as a cell — click targets are always visible |
+| 🔎 **Grouped Long Values** | HEX groups by byte and BIN groups by nibble; copy always keeps the raw value |
+| ✏️ **Pending Expression** | Current operand/operator shown in the display corner |
+| 📌 **Always on Top** | Pin the window above other apps |
+| 💾 **Settings Memory** | Radix, sign mode, bit-width lock and window position are restored on restart |
+| ⌨️ **Smart Ops** | Pressing a second operator replaces it; repeated `=` repeats the last operation |
+| 📥 **Paste** | `Ctrl+V` auto-detects `0x` / `0b` / `0o` / `xxh` / decimal values |
+| ⚙️ **Bit-Width Presets** | Click the bit-width label to lock directly to 8 / 16 / 32 / 64 bit |
+| 🕘 **History** | Last 10 results in a toolbar dropdown — click to reload |
 | ↔️ **64-bit Dual Row** | 64-bit splits into two 32-bit rows (63–32 / 31–0) |
 | ± **Signed/Unsigned** | Toggle signed interpretation of DEC values |
-| 🎨 **Light Theme** | Clean, bright interface — no theme switching |
+| 🎨 **Themes** | Switch between clean light and focused dark themes; the choice is remembered |
 | ⌨️ **Full Keyboard** | All operations accessible via keyboard |
 | ⚡ **Fast Rendering** | QPixmap cache eliminates mouse-over lag |
 | 🚀 **Quick Startup** | Delayed imports + immediate icon release |
@@ -41,7 +53,7 @@
 
 ```
 ┌──────────────────────────────────────────┐
-│ 🔧 BitForge  Programmer          v1.0.1 │
+│ 🔧 BitForge  Programmer          v1.5.0 │
 │ [HEX] [DEC] [OCT] [BIN]          [±] 32b│
 │ ┌──────────────────────────────────────┐│
 │ │                           0xDEADBEEF ││
@@ -107,6 +119,10 @@ cd PyQt-SiliconUI && python setup.py install
 | `Enter` / `=` | Evaluate |
 | `Backspace` | Delete last digit |
 | `Esc` / `Delete` | Clear all (AC) |
+| `Ctrl+C` | Copy current display value |
+| `Ctrl+V` | Paste value (`0x`/`0b`/`0o`/`xxh`/decimal auto-detected) |
+| `F1` | Open the quick help dialog |
+| `F2` | Focus the expression input |
 
 ---
 
