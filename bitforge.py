@@ -548,7 +548,7 @@ class BitForge(QMainWindow):
         self._lock_style_state=None   # 上次刷新时的锁定状态 (样式 guard)
         self._aux_last={}             # 辅助行上次 HTML (setText guard)
         self._expr_last=""            # 表达式行上次文本
-        self._meta_last=""            # 显示区顶部状态行缓存
+        self._expr_last=""            # 表达式行上次文本
         self._display_value="0"       # 未分组的显示值，供复制和右键菜单使用
         self._display_font_size=None
         self._sel_value=None          # 当前选中位域的值 (点击 SEL 标签复制)
@@ -740,10 +740,6 @@ class BitForge(QMainWindow):
         self._expr_label.setStyleSheet(f"color:{C['sub']};font-size:13px;font-weight:600;")
         self._expr_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self._expr_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self._display_meta_label=QLabel(self._display)
-        self._display_meta_label.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.4px;")
-        self._display_meta_label.setAlignment(Qt.AlignLeft|Qt.AlignTop)
-        self._display_meta_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._display.installEventFilter(self)
         self._display.setContextMenuPolicy(Qt.CustomContextMenu)
         self._display.customContextMenuRequested.connect(self._show_display_menu)
@@ -945,8 +941,6 @@ class BitForge(QMainWindow):
     def eventFilter(self,obj,ev):
         if obj is self._display and ev.type()==QEvent.Resize:
             m=self._display.contentsMargins()
-            self._display_meta_label.setGeometry(m.left(), 5,
-                self._display.width()-m.left()-m.right(), 18)
             self._expr_label.setGeometry(m.left(), 0,
                 self._display.width()-m.left()-m.right(), self._display.height()-3)
             self._rgb_chip.move(self._display.width()-34, 9)
@@ -993,7 +987,7 @@ class BitForge(QMainWindow):
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
-        self._aux_last={}; self._expr_last=""; self._meta_last=""; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
+        self._aux_last={}; self._expr_last=""; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
         self._update_layout_density(); self._refresh_display()
         if self._error:
@@ -1559,20 +1553,6 @@ class BitForge(QMainWindow):
         self._bit_indicator.set_val(self._value,self._bit_width)
         bw_text=f"{self._bit_width}b"
         if self._bit_width_lb.text()!=bw_text: self._bit_width_lb.setText(bw_text)
-        radix_name={16:"HEX",10:"DEC",8:"OCT",2:"BIN"}[self._radix]
-        state="SIGNED" if self._signed else "UNSIGNED"
-        width_state="LOCKED" if self._locked else "AUTO"
-        # 状态头胶囊: token 浅底紫字, 分隔点灰色, LOCKED 黄色
-        pill=lambda t:(f"<span style='background:{C['aux_bg']};color:{C['rad_on']};"
-                       f"font-weight:700;'>&nbsp;{t}&nbsp;</span>")
-        sep=f"<span style='color:{C['hint']}'>·</span>"
-        meta=(pill(radix_name)+sep+pill(f"{self._bit_width} BIT")+sep+
-              pill(state)+sep+
-              f"<span style='background:{C['aux_bg']};color:{C['lock'] if self._locked else C['hint']};"
-              f"font-weight:700;'>&nbsp;{width_state}&nbsp;</span>")
-        if meta!=self._meta_last:
-            self._meta_last=meta
-            self._display_meta_label.setText(meta)
         # 位宽标签/锁按钮样式 — 仅锁定状态变化时刷新, 避免每次按键重刷样式表
         if self._locked != self._lock_style_state:
             self._lock_style_state=self._locked

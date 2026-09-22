@@ -471,8 +471,6 @@ check("light theme restores", w._theme == "light" and C["win"] == "#F0F2F5")
 print("=== 18. Visual hierarchy / responsive layout ===")
 
 w._radix=16; w._signed=False; w._locked=True; w._bit_width=32; w._value=0xDEADBEEF; w._refresh_display()
-check("display status metadata", "HEX" in w._display_meta_label.text() and "32 BIT" in w._display_meta_label.text(),
-      w._display_meta_label.text())
 check("active radix visually marked", C["rad_on"] in w._aux_labels["HEX"].text(), w._aux_labels["HEX"].text())
 w.resize(580,700); w._update_layout_density(); app.processEvents()
 check("compact layout", w._compact_layout and w._tools_btn.text()=="⋯", "compact")
@@ -658,13 +656,12 @@ check("shortcut overlay opens", hasattr(w, "_shortcut_overlay") and not w._short
 w._shortcut_overlay.close()
 check("shortcut overlay closes", w._shortcut_overlay.isHidden())
 
-# ======== 25. 外观打磨回归: 等宽显示 / 胶囊状态头 / 表达式栏反馈 ========
-print("=== 25. Display font / meta pills / expr flash ===")
+# ======== 25. 外观打磨回归: 等宽显示 / 表达式栏反馈 ========
+print("=== 25. Display font / expr flash ===")
 
 check("display font monospace bold", w._display.font().family() == "Consolas" and w._display.font().bold(),
       f"{w._display.font().family()} bold={w._display.font().bold()}")
 w._refresh_display()
-check("meta pills styled", "background" in w._display_meta_label.text(), w._display_meta_label.text())
 w._flash_expr_bar(C["success"])
 check("expr bar flash green", C["success"] in w._expr_bar.styleSheet(), w._expr_bar.styleSheet())
 check("toast fade objects", hasattr(w, "_toast_effect") and hasattr(w, "_toast_anim"))
