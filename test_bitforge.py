@@ -3,13 +3,13 @@ BitForge — 组合测试套件
 用法: python test_bitforge.py
 每次修改升版前运行，确保所有功能正常。
 """
-import sys, os, time
+import sys, os, random, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from PyQt5.QtCore import Qt, QEvent, QPoint
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QApplication
-from bitforge import (BitForge, C, byte_swap, clamp, evaluate_expression,
-                      extract_field, rotate_left, rotate_right, to_signed,
+from bitforge import (BIT_MASKS, BitForge, C, DisplayText, byte_swap, clamp, evaluate_expression,
+                      extract_field, parse_number, rotate_left, rotate_right, to_signed,
                       write_field)
 
 app = QApplication(sys.argv)
@@ -25,7 +25,8 @@ def check(name, cond, detail=""):
     else:
         failed += 1
         if detail:
-            print(f"  FAIL {name}  ({detail})")
+            safe_detail=str(detail).encode("ascii","backslashreplace").decode("ascii")
+            print(f"  FAIL {name}  ({safe_detail})")
         else:
             print(f"  FAIL {name}")
 
@@ -424,11 +425,11 @@ w._apply_operator("ror"); w._value=1; w._equals()
 check("ROR keeps bit-width", w._value == 0x8000 and w._bit_width == 16)
 
 w._set_bit_width(32); w._radix=16; w._value=0xDEADBEEF; w._new_entry=False; w._refresh_display()
-check("HEX display grouped", w._display.text() == "0xDE AD BE EF", w._display.text())
+check("HEX display grouped", w._display.text() == "0xDE AD BE EF", repr(w._display.text()))
 w._copy_current()
 check("grouped HEX copies raw", QApplication.clipboard().text() == "0xDEADBEEF", QApplication.clipboard().text())
 w._radix=2; w._value=0xA5F; w._refresh_display()
-check("BIN display grouped", w._display.text() == "0b1010 0101 1111", w._display.text())
+check("BIN display grouped", w._display.text() == "0b1010 0101 1111", repr(w._display.text()))
 check("tool button", hasattr(w, "_tools_btn") and hasattr(w, "_show_tools"))
 
 # ======== 16. 表达式模式 ========
@@ -493,8 +494,8 @@ w._on_mask_changed("")
 check("empty mask placeholder", w._mask_le.placeholderText() == "0x…", w._mask_le.placeholderText())
 check("empty mask badge", w._mask_state_label.text() == "OFF", w._mask_state_label.text())
 check("mask has clear action", w._mask_le.isClearButtonEnabled())
-w._bit_indicator.set_val(1,8); w._bit_indicator.resize(500,46)
-check("bit hover hit test", w._bit_indicator._bit_at(460,25) == 0, str(w._bit_indicator._bit_at(460,25)))
+w._bit_indicator.set_val(1,8); w._bit_indicator.resize(500,82)
+check("bit hover hit test", w._bit_indicator._bit_at(460,37) == 0, str(w._bit_indicator._bit_at(460,37)))
 check("button accessibility description", w._buttons[0].accessibleDescription() == "全部清除", w._buttons[0].accessibleDescription())
 
 # ======== 20. 显示卡片与双主题对比度 ========
@@ -665,6 +666,186 @@ w._refresh_display()
 w._flash_expr_bar(C["success"])
 check("expr bar flash green", C["success"] in w._expr_bar.styleSheet(), w._expr_bar.styleSheet())
 check("toast fade objects", hasattr(w, "_toast_effect") and hasattr(w, "_toast_anim"))
+
+# ======== 26. 外观细节: 状态胶囊 / 历史元信息 / 悬停 ========
+print("=== 26. Detail polish: states / history / hover ===")
+
+w._on_mask_changed("0xFF")
+check("mask ON is a status pill", w._mask_state_label.text() == "ON" and C["warning"] in w._mask_state_label.styleSheet(),
+      w._mask_state_label.styleSheet())
+w._on_mask_changed("")
+check("mask OFF is a neutral pill", w._mask_state_label.text() == "OFF" and C["aux_bg"] in w._mask_state_label.styleSheet(),
+      w._mask_state_label.styleSheet())
+check("history includes bit width", BitForge._history_entry_label(0x1234) == "0x1234    4660    16 bit",
+      BitForge._history_entry_label(0x1234))
+check("aux values expose hover feedback", "QLabel:hover" in w._aux_labels["HEX"].styleSheet(),
+      w._aux_labels["HEX"].styleSheet())
+check("menu disabled state is styled", "QMenu::item:disabled" in w._menu().styleSheet())
+
+# ======== 27. 位宽变化不推动按键区 ========
+print("=== 27. Stable keypad position across Bit Map heights ===")
+w._locked=True
+w._bit_width=32; w._value=0x1234; w._refresh_display(); app.processEvents()
+keypad_top_32=w._keypad_grid.geometry().top()
+w._bit_width=64; w._value=0x100000000; w._refresh_display(); app.processEvents()
+keypad_top_64=w._keypad_grid.geometry().top()
+w._bit_width=8; w._value=0x12; w._refresh_display(); app.processEvents()
+keypad_top_8=w._keypad_grid.geometry().top()
+check("Bit Map keeps fixed 64-bit slot", w._bit_indicator.height()==82, str(w._bit_indicator.height()))
+check("keypad stays fixed from 32 to 64 bit", keypad_top_32==keypad_top_64,
+      f"{keypad_top_32} -> {keypad_top_64}")
+check("keypad stays fixed from 64 to 8 bit", keypad_top_64==keypad_top_8,
+      f"{keypad_top_64} -> {keypad_top_8}")
+
+# ======== 28. 发布回归: 载入值 / 有符号自动位宽 ========
+print("=== 28. Release regression: value loading / signed width ===")
+
+w._clear_all(); w._rad(16); w._locked=False
+QApplication.clipboard().setText("0xDEAD"); w._paste()
+check("paste keeps full editable HEX entry", w._entry=="DEAD", w._entry)
+QApplication.clipboard().setText("A"); w._paste()
+check("paste accepts a single bare HEX digit", w._value==0xA and w._entry=="A", f"{w._value}/{w._entry}")
+
+w._clear_all(); w._rad(10); w._signed=True; w._locked=False
+QApplication.clipboard().setText("-1"); w._paste()
+check("signed paste -1 uses 8 bits", w._value==0xFF and w._bit_width==8 and w._entry=="-1",
+      f"{hex(w._value)}/{w._bit_width}/{w._entry}")
+w._expression_input.setText("-1"); w._evaluate_expression()
+check("signed expression -1 uses 8 bits", w._value==0xFF and w._bit_width==8,
+      f"{hex(w._value)}/{w._bit_width}")
+w._clear_all(); w._signed=True; w._rad(10); w._value=0; w._refresh_display()
+w._apply_operator("sub"); w._input_digit("1"); w._equals()
+check("signed subtraction preserves compact width", w._value==0xFF and w._bit_width==8,
+      f"{hex(w._value)}/{w._bit_width}")
+w._signed=False
+
+# ======== 29. 深度回归: 固定字长 / 统一输入 / 会话 ========
+print("=== 29. Deep regression: word width / parsing / session ===")
+
+check("parse signed prefixed HEX", parse_number("-0xFF") == -255)
+check("parse grouped decimal", parse_number("1_000,000") == 1000000)
+check("parse h suffix", parse_number("FFh") == 0xFF)
+check("parse single bare HEX", parse_number("A") == 0xA)
+
+w._clear_all(); w._signed=False; w._rad(16); w._set_bit_width(8)
+w._value=0xFF; w._entry="FF"; w._refresh_display()
+w._apply_operator("add"); w._value=1; w._entry="1"; w._equals()
+check("locked 8-bit addition wraps", w._value==0 and w._bit_width==8 and w._locked,
+      f"{hex(w._value)}/{w._bit_width}/{w._locked}")
+w._apply_operator("not")
+check("locked 8-bit NOT stays 8-bit", w._value==0xFF and w._bit_width==8,
+      f"{hex(w._value)}/{w._bit_width}")
+w._value=0xFE; w._entry="FE"; w._refresh_display()
+w._apply_operator("add"); w._value=2; w._entry="2"; w._equals(); first_repeat=w._value
+w._equals(); second_repeat=w._value
+check("locked repeated equals wraps", first_repeat==0 and second_repeat==2,
+      f"{first_repeat}/{second_repeat}")
+
+w._on_mask_changed("-1")
+check("Mask accepts signed all-ones", w._bit_indicator._mask==BIT_MASKS[64], hex(w._bit_indicator._mask))
+w._on_mask_changed("0x1_0000_0000_0000_0000")
+check("Mask reports 64-bit truncation", "已截断 64 bit" in w._mask_le.toolTip(), w._mask_le.toolTip())
+
+class _SettingsStub:
+    def __init__(self, values): self.values=values
+    def value(self, key, default=None, type=None): return self.values.get(key,default)
+
+w._settings=_SettingsStub({
+    "ui/theme":"light", "calc/radix":16, "calc/signed":True, "calc/locked":True,
+    "calc/bit_width":16, "calc/value":"65535", "calc/mask":"0xFF",
+    "calc/history":["65535","bad","10"], "calc/expression_history":["1+1","",42], "win/pinned":False,
+})
+w._restore_settings()
+check("session restores current value", w._value==0xFFFF and w._entry=="FFFF", f"{hex(w._value)}/{w._entry}")
+check("session drops invalid history values", w._history==[0xFFFF,10], str(w._history))
+check("session restores expression history", w._expression_history==["1+1","42"], str(w._expression_history))
+check("session keeps Mask draft", w._saved_mask=="0xFF", w._saved_mask)
+
+# ======== 30. 位操作工作流 / 随机固定字长回归 ========
+print("=== 30. Bit workflow: formatting / Mask / randomized word math ===")
+
+w._clear_all(); w._signed=False; w._rad(16); w._set_bit_width(16)
+w._value=0xA; w._entry="A"; w._pad_display=False; w._refresh_display()
+check("compact HEX display remains default", w._display_value=="0xA", w._display_value)
+w._set_padding(True)
+check("padded HEX matches word width", w._display_value=="0x000A" and "0x000A" in w._aux_labels["HEX"].text(),
+      f"{w._display_value}/{w._aux_labels['HEX'].text()}")
+w._rad(2)
+check("padded BIN matches word width", w._display_value=="0b0000000000001010", w._display_value)
+w._set_byte_order("little")
+check("Little Endian preview is non-mutating", w._byte_order_label.text().startswith("LE") and "0A00" in w._byte_order_label.toolTip()
+      and w._value==0xA, f"{w._byte_order_label.text()}/{w._byte_order_label.toolTip()}")
+w._set_byte_order("native"); w._set_padding(False)
+w._on_mask_changed("0xF0"); w._remember_mask_favorite()
+check("Mask favorite is remembered", w._mask_favorites[0]==0xF0, str(w._mask_favorites))
+w._apply_mask_value(0xFF,"test preset")
+check("Mask preset applies without value change", w._bit_indicator._mask==0xFF and w._value==0xA,
+      f"mask={hex(w._bit_indicator._mask)} value={hex(w._value)}")
+w._field_recent=(5,3)
+check("field range keeps recent values", w._field_recent==(5,3), str(w._field_recent))
+
+rng=random.Random(0xB17F0)
+for bits in (8,16,32,64):
+    mask=BIT_MASKS[bits]
+    for case in range(8):
+        lhs=rng.getrandbits(bits); rhs=rng.getrandbits(bits); shift=rng.randrange(0,80)
+        checks={
+            "add":((lhs+rhs)&mask), "sub":((lhs-rhs)&mask), "mul":((lhs*rhs)&mask),
+            "and":(lhs&rhs), "or":(lhs|rhs), "xor":(lhs^rhs),
+            "lsh":(0 if shift>=64 else (lhs<<shift)&mask),
+            "rsh":(0 if shift>=64 else lhs>>shift),
+            "rol":rotate_left(lhs,bits,shift), "ror":rotate_right(lhs,bits,shift),
+        }
+        for op,expected in checks.items():
+            actual=clamp(BitForge._compute(op,lhs,shift if op in ("lsh","rsh","rol","ror") else rhs,bits),bits)
+            check(f"random {bits}b {op} #{case}", actual==expected,
+                  f"lhs=0x{lhs:X} rhs=0x{rhs:X} shift={shift} actual=0x{actual:X} expected=0x{expected:X}")
+        expression=f"(0x{lhs:X} + 0x{rhs:X}) XOR 0x{lhs:X}"
+        expected=((lhs+rhs)&mask)^lhs
+        check(f"random {bits}b expression #{case}", evaluate_expression(expression,bits)==(expected&mask), expression)
+
+# ======== 31. 主显示紧凑分组 / 字号自适应 ========
+print("=== 31. Display readability: compact groups / measured font ===")
+
+w.show(); w.resize(700,720); app.processEvents(); app.processEvents()
+w._clear_all(); w._signed=False; w._rad(16); w._set_bit_width(64)
+w._value=0x123456789ABCDEF0; w._entry="123456789ABCDEF0"; w._pad_display=True; w._refresh_display()
+wide_font=w._display_font_size
+check("HEX uses compact group text", w._group_display("0x521455") == "0x52 14 55",
+      repr(w._group_display("0x521455")))
+check("main display uses fixed pixel group gap", isinstance(w._display,DisplayText) and w._display.GROUP_GAP==4,
+      f"{type(w._display).__name__}/{w._display.GROUP_GAP}")
+check("wide HEX keeps readable font", wide_font >= 20, str(wide_font))
+check("font fits measured display width", wide_font == w._display_font_size_for(w._display.text()),
+      f"actual={wide_font} expected={w._display_font_size_for(w._display.text())}")
+w.resize(540,720); app.processEvents()
+check("narrow layout only reduces font when needed", w._display_font_size <= wide_font,
+      f"wide={wide_font} narrow={w._display_font_size}")
+w._rad(2); w._refresh_display()
+check("long BIN removes separators before shrinking further", " " not in w._display.text(), repr(w._display.text()))
+
+# ======== 32. 发布打磨: 显示状态 / Bit Map / Mask 草稿 ========
+print("=== 32. Release polish: display state / Bit Map / Mask draft ===")
+
+w._clear_all(); w._signed=False; w._rad(16); w._set_bit_width(32)
+w._value=0x1234; w._refresh_display(); app.processEvents()
+check("display remains free of status labels", not hasattr(w,"_display_meta"), "display metadata exists")
+check("selection pill has a fixed width", w._sel_label.width()==158, str(w._sel_label.width()))
+w._on_mask_changed("0xF0")
+w._on_mask_changed("0xBAD!")
+check("invalid Mask disables the previous active Mask",
+      w._bit_indicator._mask==0 and w._mask_state_label.text()=="ERR",
+      f"mask={w._bit_indicator._mask} state={w._mask_state_label.text()}")
+w._confirm_mask()
+check("invalid Mask reports once on confirmation", w._toast_lb.isVisible(), "toast hidden")
+
+indicator=w._bit_indicator
+indicator.set_val(0,8); app.processEvents()
+row_top=indicator._single_row_top()
+check("single-row Bit Map is vertically centred", row_top==(indicator.height()-indicator.SINGLE_ROW_HEIGHT)//2,
+      f"top={row_top} height={indicator.height()}")
+check("Bit Map ignores blank space above centred cells", indicator._bit_at(indicator.width()//2,row_top-1) is None,
+      str(indicator._bit_at(indicator.width()//2,row_top-1)))
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")

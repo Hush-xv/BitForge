@@ -7,6 +7,7 @@
   <b>BitForge</b> — A programmer calculator for embedded engineers.<br>
   一款面向嵌入式工程师的程序员计算器，基于 PyQt5 + SiliconUI。
 </p>
+<p align="center"><b>Current release: v1.9.2</b></p>
 
 <p align="center">
   <a href="#features">Features</a> ·
@@ -42,6 +43,11 @@
 | 💾 **Settings Memory** | Radix, sign mode, bit-width lock and window position are restored on restart |
 | ⌨️ **Smart Ops** | Pressing a second operator replaces it; repeated `=` repeats the last operation |
 | 📥 **Paste** | `Ctrl+V` auto-detects `0x` / `0b` / `0o` / `xxh` / decimal values |
+| 📐 **Stable Bit Map** | The Bit Map keeps a constant 64-bit layout slot, so the keypad never shifts when bit width changes |
+| ➖ **Signed Auto-Fit** | Pasted, calculated, and expression negative values keep their smallest signed bit width |
+| 🔒 **True Word Width** | A locked width now applies to arithmetic, shifts, NOT, and repeated `=` operations, with deterministic wraparound |
+| 💾 **Session Restore** | Restores the last value, Mask, result history, and expression history after restart |
+| 🧷 **Format & Mask Tools** | Optional fixed-width HEX/BIN formatting, Little Endian preview, common Masks, and saved Mask favorites |
 | ⚙️ **Bit-Width Presets** | Click the bit-width label to lock directly to 8 / 16 / 32 / 64 bit |
 | 🕘 **History** | Last 10 results in a toolbar dropdown — click to reload |
 | ↔️ **64-bit Dual Row** | 64-bit splits into two 32-bit rows (63–32 / 31–0) |
@@ -134,9 +140,10 @@ python build.py --portable
 
 ```
 BitForge/
-├── bitforge.py       # Main application (~1450 lines)
+├── bitforge.py       # Main application
 ├── build.py          # PyInstaller packaging script
-├── test_bitforge.py  # Test suite (187 checks) — run before every release
+├── test_bitforge.py  # Test suite — run before every release
+├── CHANGELOG.md      # Release notes
 ├── bitforge.ico      # Application icon (256×256)
 ├── run.bat           # Quick-launch script
 ├── README.md

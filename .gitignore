@@ -26,3 +26,6 @@ Thumbs.db
 
 # Tool session metadata (mimosa)
 .mimosa/
+
+# Local release artifacts (assets are uploaded to GitHub Releases)
+release/
