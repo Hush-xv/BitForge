@@ -30,6 +30,7 @@
 | 🧠 **Expression Mode** | Parentheses, radix prefixes, and safe 64-bit arithmetic without `eval` |
 | 💡 **Bit Indicator** | Bit-level visualization with numbered positions |
 | 🖱️ **Bit Click Toggle** | Click any bit to flip 0↔1 (right-click to clear, hover to inspect) |
+| 🎯 **Bit Field Select** | `Shift`+drag bits to select a field — its value shows live (`SEL 11:4 = 0x68 · 104`); click the label to copy |
 | 📋 **One-Click Copy** | `Ctrl+C` copies display; click a DEC/HEX/OCT/BIN row to copy that radix; right-click display for a copy menu |
 | 🧩 **Visible Bit Cells** | Every bit renders as a cell — click targets are always visible |
 | 🔎 **Grouped Long Values** | HEX groups by byte and BIN groups by nibble; copy always keeps the raw value |

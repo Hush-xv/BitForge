@@ -279,6 +279,7 @@ class BFButton(SiPushButtonRefactor):
 # =====================================================================
 class BitGlow(QWidget):
     valueChanged = pyqtSignal(object)
+    selectionChanged = pyqtSignal(object)
     M=8; GAP=3; GGAP=12
 
     def __init__(self, parent=None):
@@ -286,11 +287,13 @@ class BitGlow(QWidget):
         self._value=0; self._bits=32; self.setFixedHeight(46)
         self._cache=None; self._bw_cache=None; self._dirty=True
         self._font=QFont("Consolas",9); self._mask=0
+        self._sel=None; self._anchor=None   # 位域选择: (lo,hi) 闭区间 / 拖拽锚点
         self.setMouseTracking(True)
 
     def set_val(self,value,bits):
         if self._value==value and self._bits==bits: return
         self._value=value; self._bits=bits
+        if self._sel is not None and self._sel[1]>=bits: self.clear_selection()
         self.setFixedHeight(82 if bits>32 else 46)
         self._dirty=True; self.update()
 
@@ -329,8 +332,39 @@ class BitGlow(QWidget):
         bit_pos=(self._bits-1 if self._bits<=32 else 31)-(gi*8+bi)+bit_off
         return bit_pos if 0<=bit_pos<self._bits else None
 
+    def mousePressEvent(self,e):
+        bit_pos=self._bit_at(e.x(),e.y())
+        if bit_pos is None: return
+        if e.button()==Qt.LeftButton and e.modifiers() & Qt.ShiftModifier:
+            # Shift+左键: 开始位域选择 (普通左键仍是翻转)
+            self._anchor=bit_pos
+            self._sel_apply(bit_pos,bit_pos)
+            return
+        super().mousePressEvent(e)
+
+    def _sel_apply(self,lo,hi):
+        lo,hi=min(lo,hi),max(lo,hi)
+        self._sel=(lo,hi)
+        self.selectionChanged.emit(self._sel)
+        self._dirty=True; self.update()
+
+    def clear_selection(self):
+        if self._sel is None: return
+        self._sel=None; self._anchor=None
+        self.selectionChanged.emit(None)
+        self._dirty=True; self.update()
+
+    def _field_value(self):
+        lo,hi=self._sel
+        return (self._value>>lo)&((1<<(hi-lo+1))-1)
+
     def mouseReleaseEvent(self,e):
         bit_pos=self._bit_at(e.x(),e.y())
+        if self._anchor is not None:
+            # 拖拽选择结束; 释放未落在格子上时保留最后区间
+            if bit_pos is not None: self._sel_apply(self._anchor,bit_pos)
+            self._anchor=None
+            return
         if bit_pos is None: return
         if e.button()==Qt.RightButton:
             self.valueChanged.emit(self._value & ~(1<<bit_pos))
@@ -340,6 +374,12 @@ class BitGlow(QWidget):
     def mouseMoveEvent(self,e):
         bit_pos=self._bit_at(e.x(),e.y())
         if bit_pos is None: return
+        if self._anchor is not None:
+            # 拖拽中: 实时更新区间并显示位域值
+            self._sel_apply(self._anchor,bit_pos)
+            lo,hi=self._sel; v=self._field_value()
+            QToolTip.showText(e.globalPos(),f"bit {hi}:{lo} = 0x{v:X} ({v})",self)
+            return
         value=(self._value>>bit_pos)&1
         masked=" · Mask" if (self._mask>>bit_pos)&1 else ""
         QToolTip.showText(e.globalPos(),f"Bit {bit_pos} = {value}{masked}",self)
@@ -388,6 +428,10 @@ class BitGlow(QWidget):
                         if self._mask and (self._mask>>bit_idx)&1:
                             p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
                             p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
+                        if self._sel and self._sel[0]<=bit_idx<=self._sel[1]:
+                            sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
+                            p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
+                            p.drawRoundedRect(r,3,3)
                         x+=bw+gap; bit_idx-=1
                     x+=ggap-gap
             # 分隔线 + 位范围标注 (置于分隔线下方空隙)
@@ -422,6 +466,10 @@ class BitGlow(QWidget):
                     if self._mask and (self._mask>>bit_idx)&1:
                         p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
                         p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
+                    if self._sel and self._sel[0]<=bit_idx<=self._sel[1]:
+                        sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
+                        p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
+                        p.drawRoundedRect(r,3,3)
                     x+=bw+gap; bit_idx-=1
                 x+=ggap-gap
         p.setFont(self._font); p.end(); self._dirty=False
@@ -431,7 +479,7 @@ class BitGlow(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.5.0"
+    APP = "BitForge"; VER = "v1.6.0"
 
     def __init__(self):
         super().__init__()
@@ -448,6 +496,7 @@ class BitForge(QMainWindow):
         self._meta_last=""            # 显示区顶部状态行缓存
         self._display_value="0"       # 未分组的显示值，供复制和右键菜单使用
         self._display_font_size=None
+        self._sel_value=None          # 当前选中位域的值 (点击 SEL 标签复制)
         self._persist=True            # 关闭时写 QSettings (测试可关闭)
         self._history=[]              # 最近结果 (最新在前, 上限 10)
         self._expression_history=[]   # 最近表达式（最新在前，上限 5）
@@ -660,12 +709,21 @@ class BitForge(QMainWindow):
         self._mask_le.setToolTip("支持 0x、0b、0o、十进制或无前缀十六进制")
         self._mask_le.textChanged.connect(self._on_mask_changed)
         self._set_mask_feedback("off")
-        bit_head_l.addWidget(bit_title); bit_head_l.addStretch(); bit_head_l.addWidget(mask_title); bit_head_l.addWidget(self._mask_state_label); bit_head_l.addWidget(self._mask_le)
+        bit_head_l.addWidget(bit_title)
+        self._sel_label=QLabel(self)
+        self._sel_label.setStyleSheet(f"background:{C['aux_bg']};border:1px solid {C['op_active']};border-radius:8px;padding:2px 10px;color:{C['title']};font-family:Consolas;font-size:11px;font-weight:600;")
+        self._sel_label.setCursor(Qt.PointingHandCursor)
+        self._sel_label.setToolTip("Shift+拖拽 bit 选择位域; 点击复制其值 (AC 清除)")
+        self._sel_label.hide()
+        self._sel_label.mouseReleaseEvent = lambda e: self._copy_text(f"0x{self._sel_value:X}","选中位域") if self._sel_value is not None and e.button()==Qt.LeftButton else None
+        bit_head_l.addWidget(self._sel_label)
+        bit_head_l.addStretch(); bit_head_l.addWidget(mask_title); bit_head_l.addWidget(self._mask_state_label); bit_head_l.addWidget(self._mask_le)
         v.addWidget(bit_head)
 
         # Bit
         self._bit_indicator=BitGlow(self); v.addWidget(self._bit_indicator)
         self._bit_indicator.valueChanged.connect(self._on_bit_click)
+        self._bit_indicator.selectionChanged.connect(self._on_selection_changed)
 
         # 辅助 — 2×2 多进制同步显示 (点击复制对应进制值)
         self._aux_labels={}
@@ -1214,6 +1272,7 @@ class BitForge(QMainWindow):
     def _clear_all(self):
         self._value=0; self._entry="0"; self._pending=None; self._new_entry=True; self._bit_width=8; self._locked=False; self._lock_btn.setChecked(False); self._error=False; self._value_anim.stop(); self._ani_running=False; self._ani_last=""; self._last_op=None
         self._set_active_op(None)
+        self._bit_indicator.clear_selection()
         self._refresh_display()
 
     def _backspace(self):
@@ -1409,6 +1468,13 @@ class BitForge(QMainWindow):
         if expr!=self._expr_last:
             self._expr_last=expr
             self._expr_label.setText(expr)
+        # 位域选择标签 — 值随当前数值实时更新
+        if self._bit_indicator._sel is not None:
+            v=(self._value>>self._bit_indicator._sel[0])&((1<<(self._bit_indicator._sel[1]-self._bit_indicator._sel[0]+1))-1)
+            if v!=self._sel_value:
+                self._sel_value=v
+                lo,hi=self._bit_indicator._sel
+                self._sel_label.setText(f"SEL {hi}:{lo} = 0x{v:X} · {v}")
 
     def _on_bit_click(self,v):
         if self._error: self._error=False
@@ -1432,6 +1498,15 @@ class BitForge(QMainWindow):
         self._mask_state_label.setText(state_text)
         self._mask_state_label.setStyleSheet(f"color:{color};font-size:9px;font-weight:700;")
         le.setToolTip(detail or "支持 0x、0b、0o、十进制或无前缀十六进制")
+
+    def _on_selection_changed(self,sel):
+        """BitGlow 位域选择变化 → 更新 SEL 标签 (点击可复制)。"""
+        if sel is None:
+            self._sel_value=None; self._sel_label.hide(); return
+        lo,hi=sel
+        self._sel_value=(self._value>>lo)&((1<<(hi-lo+1))-1)
+        self._sel_label.setText(f"SEL {hi}:{lo} = 0x{self._sel_value:X} · {self._sel_value}")
+        self._sel_label.show()
 
     def _on_mask_changed(self,text):
         if not text.strip():

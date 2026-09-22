@@ -579,6 +579,50 @@ check("error context menu blocked", "无可复制" in w._toast_lb.text() and
 w._toast_timer.stop(); w._toast_lb.hide()
 w._clear_all()
 
+# ======== 23. 位域鼠标选择 (Shift+拖拽) ========
+print("=== 23. Bit-field mouse selection ===")
+
+w._clear_all(); w._radix = 16
+w._value = 0x12D687; w._refresh_display()
+
+w._bit_indicator._sel_apply(4, 7)
+check("selection stored", w._bit_indicator._sel == (4, 7), str(w._bit_indicator._sel))
+check("selection label text", "SEL 7:4" in w._sel_label.text() and "0x8" in w._sel_label.text(),
+      w._sel_label.text())
+check("selection value", w._sel_value == 0x8, hex(w._sel_value))
+check("selection label visible", not w._sel_label.isHidden())
+
+w._bit_indicator._sel_apply(7, 4)
+check("selection order normalized", w._bit_indicator._sel == (4, 7), str(w._bit_indicator._sel))
+
+w._bit_indicator._sel_apply(0, 0)
+check("single-bit selection", w._bit_indicator._sel == (0, 0) and w._sel_value == 1,
+      f"sel={w._bit_indicator._sel} v={w._sel_value}")
+
+# 数值变化 → 选中位域值实时更新
+w._bit_indicator._sel_apply(4, 7)
+left_click(7)   # 0x12D687 bit7=1 → 翻转为 0
+check("selection value tracks input", w._sel_value == 0x0 and "0x0" in w._sel_label.text(),
+      f"v={w._sel_value} label={w._sel_label.text()}")
+w._bit_indicator.clear_selection()
+check("selection cleared", w._bit_indicator._sel is None and w._sel_label.isHidden())
+
+# 位宽缩小 → 越界选择自动清除
+w._clear_all()
+w._bit_indicator.set_val(0xDEADBEEFCAFEBABE, 64)
+w._bit_indicator._sel_apply(60, 63)
+check("high selection set", w._bit_indicator._sel == (60, 63), str(w._bit_indicator._sel))
+w._refresh_display()   # _bit_width=16 → set_val 触发清除
+check("width shrink clears selection", w._bit_indicator._sel is None and w._sel_label.isHidden())
+
+# AC 清除选择
+w._refresh_display()
+w._bit_indicator._sel_apply(4, 7)
+w._clear_all()
+check("AC clears selection", w._bit_indicator._sel is None and w._sel_value is None)
+check("sel label widget", hasattr(w, "_sel_label"))
+check("selection signal handler", hasattr(w, "_on_selection_changed"))
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
