@@ -658,6 +658,17 @@ check("shortcut overlay opens", hasattr(w, "_shortcut_overlay") and not w._short
 w._shortcut_overlay.close()
 check("shortcut overlay closes", w._shortcut_overlay.isHidden())
 
+# ======== 25. 外观打磨回归: 等宽显示 / 胶囊状态头 / 表达式栏反馈 ========
+print("=== 25. Display font / meta pills / expr flash ===")
+
+check("display font monospace bold", w._display.font().family() == "Consolas" and w._display.font().bold(),
+      f"{w._display.font().family()} bold={w._display.font().bold()}")
+w._refresh_display()
+check("meta pills styled", "background" in w._display_meta_label.text(), w._display_meta_label.text())
+w._flash_expr_bar(C["success"])
+check("expr bar flash green", C["success"] in w._expr_bar.styleSheet(), w._expr_bar.styleSheet())
+check("toast fade objects", hasattr(w, "_toast_effect") and hasattr(w, "_toast_anim"))
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
