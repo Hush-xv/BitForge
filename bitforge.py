@@ -13,7 +13,7 @@ import sys
 
 from PyQt5.QtCore import (Qt, QRectF, QTimer, QEasingCurve, QVariantAnimation,
                           QEvent, QPoint, QByteArray, QSettings, pyqtSignal)
-from PyQt5.QtGui import QColor, QFont, QIcon, QKeyEvent, QPainter, QPixmap
+from PyQt5.QtGui import QColor, QFont, QIcon, QKeyEvent, QPainter, QPainterPath, QPixmap
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
     QInputDialog, QLineEdit, QMainWindow, QLabel, QMenu, QPushButton, QSizePolicy, QToolTip,
@@ -198,6 +198,7 @@ class BFButton(SiPushButtonRefactor):
         self._active = False
         self._hover = False
         self._pressed = False
+        self._ripples = []   # 按压涟漪: {anim,pos,radius,alpha}
         self._tip=self.TIPS.get(text,"")
         self.setText(text)
         self.setAccessibleName(f"计算器按键 {text}")
@@ -242,6 +243,16 @@ class BFButton(SiPushButtonRefactor):
         elif self._hover and not self._dim: color=color.lighter(106)
         p.setPen(Qt.NoPen); p.setBrush(color)
         p.drawRoundedRect(rect,BR,BR)
+        if self._ripples:
+            # 涟漪: 圆形扩散, 裁剪在圆角矩形内
+            path=QPainterPath(); path.addRoundedRect(rect,BR,BR)
+            p.setClipPath(path)
+            for entry in self._ripples:
+                base=QColor(255,255,255) if not self._dim else QColor(0,0,0)
+                base.setAlpha(int(entry["alpha"]))
+                p.setPen(Qt.NoPen); p.setBrush(base)
+                p.drawEllipse(entry["pos"], entry["radius"], entry["radius"])
+            p.setClipping(False)
         if self.hasFocus():
             p.setPen(QColor(C["rad_on"])); p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(rect.adjusted(1,1,-1,-1),BR-2,BR-2)
@@ -262,7 +273,22 @@ class BFButton(SiPushButtonRefactor):
 
     def mousePressEvent(self,e):
         self._pressed=True; self.update()
+        if e.button()==Qt.LeftButton: self._start_ripple(e.pos())
         super().mousePressEvent(e)
+
+    def _start_ripple(self,pos):
+        """按压涟漪: 半径扩散 + 透明度衰减, 380ms 后自动移除。"""
+        r_max=(self.width()**2+self.height()**2)**0.5
+        anim=QVariantAnimation(self); anim.setDuration(380)
+        anim.setStartValue(0.0); anim.setEndValue(1.0)
+        entry={"anim":anim,"pos":pos,"radius":0.0,"alpha":90.0}
+        def step(v):
+            entry["radius"]=r_max*float(v); entry["alpha"]=90.0*(1.0-float(v)); self.update()
+        def done():
+            if entry in self._ripples: self._ripples.remove(entry)
+            self.update()
+        anim.valueChanged.connect(step); anim.finished.connect(done)
+        self._ripples.append(entry); anim.start()
 
     def mouseReleaseEvent(self,e):
         self._pressed=False; self.update()
@@ -288,10 +314,31 @@ class BitGlow(QWidget):
         self._cache=None; self._bw_cache=None; self._dirty=True
         self._font=QFont("Consolas",9); self._mask=0
         self._sel=None; self._anchor=None   # 位域选择: (lo,hi) 闭区间 / 拖拽锚点
+        self._flash={}                       # 位翻转闪烁: bit → 剩余帧数
+        self._flash_timer=QTimer(self); self._flash_timer.setInterval(40)
+        self._flash_timer.timeout.connect(self._flash_tick)
         self.setMouseTracking(True)
+
+    def _flash_tick(self):
+        if not self._flash:
+            self._flash_timer.stop(); return
+        for bit in list(self._flash):
+            self._flash[bit]-=1
+            if self._flash[bit]<=0: del self._flash[bit]
+        self._dirty=True; self.update()
+
+    def _start_flash(self,old,new):
+        changed=(old^new) & ((1<<self._bits)-1)
+        if not changed: return
+        bit=0
+        while changed>>bit:
+            if (changed>>bit)&1: self._flash[bit]=6   # 6 帧 ≈ 240ms
+            bit+=1
+        if not self._flash_timer.isActive(): self._flash_timer.start()
 
     def set_val(self,value,bits):
         if self._value==value and self._bits==bits: return
+        if bits==self._bits: self._start_flash(self._value,value)
         self._value=value; self._bits=bits
         if self._sel is not None and self._sel[1]>=bits: self.clear_selection()
         self.setFixedHeight(82 if bits>32 else 46)
@@ -432,6 +479,10 @@ class BitGlow(QWidget):
                             sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
                             p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
                             p.drawRoundedRect(r,3,3)
+                        if bit_idx in self._flash:
+                            fl=QColor("#FFFFFF"); fl.setAlpha(30*self._flash[bit_idx]//6)
+                            p.setBrush(fl); p.setPen(Qt.NoPen)
+                            p.drawRoundedRect(r,3,3)
                         x+=bw+gap; bit_idx-=1
                     x+=ggap-gap
             # 分隔线 + 位范围标注 (置于分隔线下方空隙)
@@ -470,6 +521,10 @@ class BitGlow(QWidget):
                         sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
                         p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
                         p.drawRoundedRect(r,3,3)
+                    if bit_idx in self._flash:
+                        fl=QColor("#FFFFFF"); fl.setAlpha(30*self._flash[bit_idx]//6)
+                        p.setBrush(fl); p.setPen(Qt.NoPen)
+                        p.drawRoundedRect(r,3,3)
                     x+=bw+gap; bit_idx-=1
                 x+=ggap-gap
         p.setFont(self._font); p.end(); self._dirty=False
@@ -479,7 +534,7 @@ class BitGlow(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.6.0"
+    APP = "BitForge"; VER = "v1.7.0"
 
     def __init__(self):
         super().__init__()
@@ -676,6 +731,13 @@ class BitForge(QMainWindow):
         self._display.installEventFilter(self)
         self._display.setContextMenuPolicy(Qt.CustomContextMenu)
         self._display.customContextMenuRequested.connect(self._show_display_menu)
+        # RGB 色板: HEX 模式下显示低 24 位颜色
+        self._rgb_chip=QLabel(self._display)
+        self._rgb_chip.setFixedSize(18,12)
+        self._rgb_chip.setAlignment(Qt.AlignCenter)
+        self._rgb_chip.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._rgb_chip.hide()
+        self._chip_last=None
 
         # 独立表达式栏：不改变传统按键计算状态
         expr_bar=QFrame(); expr_bar.setObjectName("expressionBar")
@@ -800,6 +862,37 @@ class BitForge(QMainWindow):
         self._refresh_radix_buttons()
 
     # ===== 工具 =====
+    def _toggle_shortcut_overlay(self):
+        """按 ? 弹出/关闭快捷键速查浮层 (点外部或 Esc 关闭)。"""
+        if getattr(self,"_shortcut_overlay",None) and self._shortcut_overlay.isVisible():
+            self._shortcut_overlay.close(); return
+        ov=QWidget(self, Qt.Popup|Qt.FramelessWindowHint)
+        ov.setObjectName("shortcutOverlay")
+        ov.setAttribute(Qt.WA_TranslucentBackground)
+        bg=QColor(C["dsp_bg"])
+        ov.setStyleSheet(f"QWidget#shortcutOverlay{{background:rgba({bg.red()},{bg.green()},{bg.blue()},244);"
+                         f"border:1px solid {C['tb_bdr']};border-radius:12px;}}")
+        l=QVBoxLayout(ov); l.setContentsMargins(20,14,20,16); l.setSpacing(6)
+        title=QLabel("快捷键"); title.setStyleSheet(f"color:{C['title']};font-size:13px;font-weight:700;background:transparent;border:none;")
+        l.addWidget(title)
+        kb=lambda t:(f"<span style='background:{C['aux_bg']};color:{C['title']};"
+                     f"font-weight:600;'>&nbsp;{t}&nbsp;</span>")
+        plain=lambda t:f"<span style='color:{C['hint']}'>{t}</span>"
+        rows=[("0-9  A-F","数字输入"),("+ - * / % & | ^ ~","运算"),("<<  >>","移位 (Shift+< / >)"),
+              ("Enter  =","求值"),("Esc / Del","清空"),("Ctrl+C / Ctrl+V","复制 / 粘贴"),
+              ("Shift+拖拽 bit","选择位域"),("F1","帮助"),("F2","表达式")]
+        for k,d in rows:
+            row=QLabel(f"{kb(k)}  {plain(d)}")
+            row.setTextFormat(Qt.RichText)
+            row.setStyleSheet("background:transparent;border:none;")
+            l.addWidget(row)
+        ov.adjustSize()
+        g=self.geometry()
+        ov.move(g.x()+(g.width()-ov.width())//2, g.y()+(g.height()-ov.height())//2)
+        self._shortcut_overlay=ov
+        ov.show()
+        dlog("shortcut overlay shown")
+
     def _hint_html(self,compact=False):
         """底部快捷键提示: 键帽样式, 随主题着色。"""
         kb=lambda t:(f"<span style='background:{C['aux_bg']};color:{C['title']};"
@@ -828,6 +921,7 @@ class BitForge(QMainWindow):
                 self._display.width()-m.left()-m.right(), 18)
             self._expr_label.setGeometry(m.left(), 0,
                 self._display.width()-m.left()-m.right(), self._display.height()-3)
+            self._rgb_chip.move(self._display.width()-34, 9)
         return super().eventFilter(obj,ev)
 
     def resizeEvent(self,e):
@@ -871,7 +965,7 @@ class BitForge(QMainWindow):
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
-        self._aux_last={}; self._expr_last=""; self._meta_last=""; self._lock_style_state=None; self._display_font_size=None
+        self._aux_last={}; self._expr_last=""; self._meta_last=""; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
         self._update_layout_density(); self._refresh_display()
         if self._error:
@@ -1475,6 +1569,16 @@ class BitForge(QMainWindow):
                 self._sel_value=v
                 lo,hi=self._bit_indicator._sel
                 self._sel_label.setText(f"SEL {hi}:{lo} = 0x{v:X} · {v}")
+        # RGB 色板 — 仅 HEX 模式, 取低 24 位
+        if self._radix==16:
+            rgb=u & 0xFFFFFF
+            chip=f"background:#{rgb:06X};border:1px solid {C['tb_bdr']};border-radius:3px;"
+            self._rgb_chip.setToolTip(f"RGB 预览 #{rgb:06X}")
+            if chip!=self._chip_last:
+                self._chip_last=chip
+                self._rgb_chip.setStyleSheet(chip); self._rgb_chip.show()
+        elif self._chip_last is not None:
+            self._chip_last=None; self._rgb_chip.hide()
 
     def _on_bit_click(self,v):
         if self._error: self._error=False
@@ -1533,6 +1637,7 @@ class BitForge(QMainWindow):
         k,tx=e.key(),e.text()
         if k==Qt.Key_C and e.modifiers() & Qt.ControlModifier: self._copy_current(); return
         if k==Qt.Key_V and e.modifiers() & Qt.ControlModifier: self._paste(); return
+        if tx=="?": self._toggle_shortcut_overlay(); return   # 需先于 "/" 运算映射
         if tx in "0123456789": self._input_digit(tx); return
         if tx.lower() in "abcdef" and self._radix==16: self._input_digit(tx.upper()); return
         om={Qt.Key_Plus:"add",Qt.Key_Minus:"sub",Qt.Key_Asterisk:"mul",

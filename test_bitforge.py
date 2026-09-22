@@ -3,7 +3,7 @@ BitForge — 组合测试套件
 用法: python test_bitforge.py
 每次修改升版前运行，确保所有功能正常。
 """
-import sys, os
+import sys, os, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from PyQt5.QtCore import Qt, QEvent, QPoint
 from PyQt5.QtGui import QKeyEvent
@@ -622,6 +622,41 @@ w._clear_all()
 check("AC clears selection", w._bit_indicator._sel is None and w._sel_value is None)
 check("sel label widget", hasattr(w, "_sel_label"))
 check("selection signal handler", hasattr(w, "_on_selection_changed"))
+
+# ======== 24. 动效与小件: 涟漪 / 位翻转闪烁 / RGB 色板 / 快捷键浮层 ========
+print("=== 24. Animations / RGB chip / shortcut overlay ===")
+
+# 按键涟漪: 触发一条, 动画结束自动清理
+btn = w._buttons[0]
+btn._start_ripple(QPoint(5, 5))
+check("ripple starts", len(btn._ripples) == 1, str(len(btn._ripples)))
+for _ in range(14):                       # 380ms 动画自然走完 → finished 自动清理
+    app.processEvents(); time.sleep(0.04)
+check("ripple auto-removed", len(btn._ripples) == 0, str(len(btn._ripples)))
+
+# 位翻转闪烁: 翻转产生闪烁帧, 240ms 后自然衰减
+w._clear_all(); w._value = 0; w._refresh_display()
+left_click(3)
+check("bit flip starts flash", 3 in w._bit_indicator._flash, str(w._bit_indicator._flash))
+for _ in range(12):
+    app.processEvents(); time.sleep(0.05)
+check("bit flash decays", not w._bit_indicator._flash and not w._bit_indicator._flash_timer.isActive())
+w._clear_all()
+
+# RGB 色板: HEX 显示 / DEC 隐藏
+w._rad(16); w._value = 0x12D687; w._refresh_display()
+check("rgb chip visible in hex", not w._rgb_chip.isHidden())
+check("rgb chip color", "#12D687" in w._rgb_chip.styleSheet(), w._rgb_chip.styleSheet())
+w._rad(10); w._refresh_display()
+check("rgb chip hidden in dec", w._rgb_chip.isHidden())
+w._rad(16); w._value = 0x12D687; w._refresh_display()
+
+# 快捷键浮层: ? 触发, 再按关闭
+ev_q = QKeyEvent(QEvent.KeyPress, Qt.Key_Slash, Qt.ShiftModifier, "?")
+w.keyPressEvent(ev_q)
+check("shortcut overlay opens", hasattr(w, "_shortcut_overlay") and not w._shortcut_overlay.isHidden())
+w._shortcut_overlay.close()
+check("shortcut overlay closes", w._shortcut_overlay.isHidden())
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
