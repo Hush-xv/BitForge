@@ -1,3 +1,8 @@
+## v1.10.0 — History sources, Tab radix cycle, follow system theme
+
+- Result history now records its source: keypad operations, tool actions or the expression text.
+- `Tab` / `Shift+Tab` cycle HEX -> DEC -> OCT -> BIN; text inputs keep standard focus behaviour.
+- New opt-in "follow system" light/dark switch in the Tools > Appearance menu, polling Windows settings.
 # Changelog
 
 ## v1.9.2 — Precise display grouping

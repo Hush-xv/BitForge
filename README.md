@@ -35,6 +35,8 @@
 | 🌈 **RGB Preview** | In HEX mode a color swatch of the low 24 bits sits in the display card |
 | ⌨️ **Shortcut Overlay** | Press `?` for a translucent cheat sheet of every shortcut |
 | ✨ **Micro-animations** | Key-press ripples and bit-flip flash feedback |
+| 🔄 **Tab Radix Cycle** | `Tab` / `Shift+Tab` cycle HEX → DEC → OCT → BIN without touching the mouse |
+| 🌗 **Follow System Theme** | Optional: match the Windows light/dark setting automatically (Tools > Appearance) |
 | 📋 **One-Click Copy** | `Ctrl+C` copies display; click a DEC/HEX/OCT/BIN row to copy that radix; right-click display for a copy menu |
 | 🧩 **Visible Bit Cells** | Every bit renders as a cell — click targets are always visible |
 | 🔎 **Grouped Long Values** | HEX groups by byte and BIN groups by nibble; copy always keeps the raw value |

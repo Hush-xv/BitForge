@@ -368,8 +368,9 @@ w._clear_all()
 # 历史: 记录 + 载入
 w._value = 10; w._refresh_display()
 w._apply_operator("add"); w._value = 20; w._equals()
-check("history records", len(w._history) >= 1 and w._history[0] == 30, str(w._history))
-w._load_value(w._history[0])
+check("history records", len(w._history) >= 1 and w._history[0]["v"] == 30
+      and w._history[0]["src"] == "10 + 20", str(w._history))
+w._load_value(w._history[0]["v"])
 check("history load", w._value == 30 and w._pending is None)
 check("hist button", hasattr(w, "_hist_btn"))
 w._clear_all()
@@ -558,7 +559,8 @@ w._clear_all(); w._value = 3; w._refresh_display()
 n_acts = len(w._history)
 w._apply_tool_value(rotate_left(w._value, w._bit_width, 1), "循环左移 1 位")
 check("ROL by 1", w._value == 6, hex(w._value))
-check("ROL recorded in history", len(w._history) >= 1 and w._history[0] == 6, str(w._history[:3]))
+check("ROL recorded in history", len(w._history) >= 1 and w._history[0]["v"] == 6
+      and w._history[0]["src"] == "循环左移 1 位", str(w._history[:3]))
 
 # 错误态切主题: Error 显示保持
 w._clear_all(); w._value = 10; w._refresh_display()
@@ -676,8 +678,8 @@ check("mask ON is a status pill", w._mask_state_label.text() == "ON" and C["warn
 w._on_mask_changed("")
 check("mask OFF is a neutral pill", w._mask_state_label.text() == "OFF" and C["aux_bg"] in w._mask_state_label.styleSheet(),
       w._mask_state_label.styleSheet())
-check("history includes bit width", BitForge._history_entry_label(0x1234) == "0x1234    4660    16 bit",
-      BitForge._history_entry_label(0x1234))
+check("history includes bit width", w._history_entry_label({"v": 0x1234, "src": ""}) == "0x1234    4660    16 bit",
+      w._history_entry_label({"v": 0x1234, "src": ""}))
 check("aux values expose hover feedback", "QLabel:hover" in w._aux_labels["HEX"].styleSheet(),
       w._aux_labels["HEX"].styleSheet())
 check("menu disabled state is styled", "QMenu::item:disabled" in w._menu().styleSheet())
@@ -757,7 +759,8 @@ w._settings=_SettingsStub({
 })
 w._restore_settings()
 check("session restores current value", w._value==0xFFFF and w._entry=="FFFF", f"{hex(w._value)}/{w._entry}")
-check("session drops invalid history values", w._history==[0xFFFF,10], str(w._history))
+check("session drops invalid history values",
+      w._history == [{"v": 0xFFFF, "src": ""}, {"v": 10, "src": ""}], str(w._history))
 check("session restores expression history", w._expression_history==["1+1","42"], str(w._expression_history))
 check("session keeps Mask draft", w._saved_mask=="0xFF", w._saved_mask)
 
@@ -846,6 +849,62 @@ check("single-row Bit Map is vertically centred", row_top==(indicator.height()-i
       f"top={row_top} height={indicator.height()}")
 check("Bit Map ignores blank space above centred cells", indicator._bit_at(indicator.width()//2,row_top-1) is None,
       str(indicator._bit_at(indicator.width()//2,row_top-1)))
+
+# ======== 33. B/C/D: 历史来源 / Tab 切进制 / 跟随系统主题 ========
+print("=== 33. History sources / Tab radix cycle / follow system ===")
+
+# 历史来源: 按键运算
+w._clear_all(); w._radix = 10
+w._value = 12; w._refresh_display()
+w._apply_operator("add"); w._value = 34; w._equals()
+check("history source for add", w._history[0]["v"] == 46 and w._history[0]["src"] == "12 + 34",
+      str(w._history[0]))
+
+# 历史来源: 表达式
+w._expression_input.setText("0x10 * 2"); w._evaluate_expression()
+check("history source for expression", w._history[0]["src"] == "0x10 * 2" and w._history[0]["v"] == 32,
+      str(w._history[0]))
+w._clear_all()
+
+# 历史: 连按 = 的来源
+w._value = 8; w._refresh_display()
+w._apply_operator("add"); w._value = 1; w._equals()          # 9, 来源 8+1
+w._equals()                                                  # 重复: 9+1=10
+check("repeat equals source", w._history[0]["v"] == 10 and "重复" in w._history[0]["src"],
+      str(w._history[0]))
+w._clear_all()
+
+# 历史菜单标签包含来源
+w._remember(0x5A, "测试来源")
+check("history label contains source", "测试来源" in w._history_entry_label(w._history[0]),
+      w._history_entry_label(w._history[0]))
+w._clear_all()
+
+# Tab 循环进制
+w._clear_all(); w._radix = 16
+ev_tab = QKeyEvent(QEvent.KeyPress, Qt.Key_Tab, Qt.NoModifier, "\t")
+w.keyPressEvent(ev_tab)
+check("Tab cycles hex -> dec", w._radix == 10, str(w._radix))
+w.keyPressEvent(ev_tab)
+check("Tab cycles dec -> oct", w._radix == 8, str(w._radix))
+w.keyPressEvent(ev_tab); w.keyPressEvent(ev_tab)
+check("Tab wraps oct -> hex", w._radix == 16, str(w._radix))
+ev_btab = QKeyEvent(QEvent.KeyPress, Qt.Key_Backtab, Qt.NoModifier, "\t")
+w.keyPressEvent(ev_btab)
+check("Backtab cycles reverse hex -> bin", w._radix == 2, str(w._radix))
+w._clear_all(); w._radix = 16
+
+# 跟随系统主题
+check("system theme detected", w._system_theme() in ("light", "dark"), w._system_theme())
+theme_before = w._theme
+w._follow_system = False
+w._apply_system_theme()
+check("follow off keeps theme", w._theme == theme_before)
+w._follow_system = True
+w._apply_system_theme()
+check("follow on matches system", w._theme == w._system_theme(),
+      f"theme={w._theme} system={w._system_theme()}")
+w._follow_system = False; w._set_theme("light")
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")

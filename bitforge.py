@@ -48,6 +48,9 @@ def make_app_icon():
 ALL_DIGITS = "0123456789ABCDEF"
 BIT_MASKS = {8: 0xFF, 16: 0xFFFF, 32: 0xFFFFFFFF, 64: (1 << 64) - 1}
 RADIX_DIGITS = {16: "0123456789ABCDEF", 10: "0123456789", 8: "01234567", 2: "01"}
+OP_SYMBOLS = {"add": "+", "sub": "\u2212", "mul": "\u00d7", "div": "\u00f7", "mod": "%",
+              "and": "AND", "or": "OR", "xor": "XOR", "lsh": "<<", "rsh": ">>",
+              "rol": "ROL", "ror": "ROR"}
 def clamp(v, b): return v & BIT_MASKS[b]
 def to_signed(v, b):
     u = clamp(v, b)
@@ -609,7 +612,7 @@ class BitGlow(QWidget):
 #  主窗口
 # =====================================================================
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.9.2"
+    APP = "BitForge"; VER = "v1.10.0"
 
     def __init__(self):
         super().__init__()
@@ -642,16 +645,19 @@ class BitForge(QMainWindow):
         self._value_anim.valueChanged.connect(self._ani_set_text)
         self._ani_last=""; self._ani_running=False
         self._value_anim.finished.connect(lambda: setattr(self,'_ani_running',False))
+        self._sys_timer=QTimer(self); self._sys_timer.setInterval(3000)
+        self._sys_timer.timeout.connect(self._apply_system_theme)
         self._build_ui()
         if self._saved_mask: self._mask_le.setText(self._saved_mask)
         self._update_layout_density(); self._refresh_display()
+        if self._follow_system: self._sys_timer.start()
         self._apply_pin(self._pinned)
         g=self._settings.value("win/geometry")
         if g:
             try: self.restoreGeometry(QByteArray.fromBase64(g.encode()))
             except Exception: pass
 
-    HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Ctrl+C/V  F1 帮助"
+    HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Tab 切换进制  Ctrl+C/V  F1 帮助"
 
     def _ani_set_text(self,val):
         self._display.setText(f"{val:.0f}")
@@ -990,7 +996,7 @@ class BitForge(QMainWindow):
         plain=lambda t:f"<span style='color:{C['hint']}'>{t}</span>"
         rows=[("0-9  A-F","数字输入"),("+ - * / % & | ^ ~","运算"),("<<  >>","移位 (Shift+< / >)"),
               ("Enter  =","求值"),("Esc / Del","清空"),("Ctrl+C / Ctrl+V","复制 / 粘贴"),
-              ("Shift+拖拽 bit","选择位域"),("F1","帮助"),("F2","表达式")]
+              ("Shift+拖拽 bit","选择位域"),("Tab / Shift+Tab","循环进制"),("F1","帮助"),("F2","表达式")]
         for k,d in rows:
             row=QLabel(f"{kb(k)}  {plain(d)}")
             row.setTextFormat(Qt.RichText)
@@ -1055,10 +1061,41 @@ class BitForge(QMainWindow):
             dlog("layout", "compact" if compact else "regular", "width", self.width())
 
     # ===== 设置记忆 =====
+    def _system_theme(self):
+        """读取 Windows 应用亮暗设置; 读取失败默认亮色。"""
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+                light,_=winreg.QueryValueEx(key,"AppsUseLightTheme")
+            return "light" if light else "dark"
+        except OSError:
+            return "light"
+
+    def _apply_system_theme(self):
+        if not self._follow_system: return
+        t=self._system_theme()
+        if t!=self._theme: self._set_theme(t)
+
+    def _set_follow_system(self,on):
+        """跟随系统亮暗: 开启即应用检测到的主题并启动轮询。"""
+        self._follow_system=on
+        self._settings.setValue("ui/follow_system",on)
+        if on:
+            self._apply_system_theme()
+            self._sys_timer.start()
+            self._toast("主题跟随系统","success")
+        else:
+            self._sys_timer.stop()
+            self._toast("主题手动","success")
+        dlog("follow system:", on)
+
     def _restore_settings(self):
         s=self._settings
         self._theme=s.value("ui/theme","light")
         if self._theme not in ("light","dark"): self._theme="light"
+        self._follow_system=s.value("ui/follow_system",False,type=bool)
+        if self._follow_system: self._theme=self._system_theme()
         self._radix=s.value("calc/radix",10,type=int)
         if self._radix not in RADIX_DIGITS: self._radix=10
         self._signed=s.value("calc/signed",False,type=bool)
@@ -1077,7 +1114,7 @@ class BitForge(QMainWindow):
         self._pinned=s.value("win/pinned",False,type=bool)
         try: self._value=clamp(int(s.value("calc/value","0")),64)
         except (TypeError,ValueError): self._value=0
-        self._history=self._restore_number_history(s.value("calc/history",[]),10)
+        self._history=[{"v":n,"src":""} for n in self._restore_number_history(s.value("calc/history",[]),10)]
         raw_expr=s.value("calc/expression_history",[])
         if not isinstance(raw_expr,(list,tuple)): raw_expr=[] if raw_expr in (None,"") else [raw_expr]
         self._expression_history=[str(v) for v in raw_expr if str(v).strip()][:5]
@@ -1116,6 +1153,7 @@ class BitForge(QMainWindow):
         if self._persist:
             s=self._settings
             s.setValue("ui/theme",self._theme)
+            s.setValue("ui/follow_system",self._follow_system)
             s.setValue("calc/radix",self._radix)
             s.setValue("calc/signed",self._signed)
             s.setValue("calc/locked",self._locked)
@@ -1127,7 +1165,7 @@ class BitForge(QMainWindow):
             s.setValue("calc/field_width",self._field_recent[1])
             s.setValue("calc/value",str(self._value))
             s.setValue("calc/mask",self._mask_le.text())
-            s.setValue("calc/history",[str(v) for v in self._history])
+            s.setValue("calc/history",[str(h["v"]) for h in self._history])
             s.setValue("calc/expression_history",self._expression_history)
             s.setValue("win/pinned",self._pinned)
             s.setValue("win/geometry",bytes(self.saveGeometry().toBase64()).decode())
@@ -1278,7 +1316,7 @@ class BitForge(QMainWindow):
               "<b>位操作：</b>左键切换位，右键清零；“工具”提供循环移位、字节交换与位域操作。<br>"
               "<b>结果：</b>点击辅助进制行复制；历史按钮可重新载入结果。<br>"
               "<b>表达式：</b>支持括号、进制前缀及全部常用位运算，使用当前锁定位宽。<br>"
-              "<b>快捷键：</b>Enter =，Esc 清空，Ctrl+C 复制，F1 帮助，F2 定位表达式栏。")
+              "<b>快捷键：</b>Enter =，Esc 清空，Tab 循环进制，Ctrl+C 复制，F1 帮助，F2 定位表达式栏。")
         body=QLabel(text); body.setWordWrap(True); body.setStyleSheet(f"font-size:12px;color:{C['aux_fg']};line-height:1.6;")
         l.addWidget(body); l.addStretch()
         close=QPushButton("关闭"); close.clicked.connect(d.accept); close.setFixedHeight(30)
@@ -1344,7 +1382,7 @@ class BitForge(QMainWindow):
         if self._error: self._error=False
         self._value=self._fit_value(value, signed_64=True); self._entry=self._format_entry(self._value)
         self._new_entry=True; self._pending=None; self._last_op=None
-        self._set_active_op(None); self._remember(self._value); self._refresh_display()
+        self._set_active_op(None); self._remember(self._value,text); self._refresh_display()
         self._remember_expression(text)
         self._flash_expr_bar(C["success"])
         self._toast("表达式已计算","success")
@@ -1393,10 +1431,10 @@ class BitForge(QMainWindow):
             self._bit_width=self._calc_bw(raw)
         return clamp(raw,self._bit_width)
 
-    def _remember(self,v):
-        if not self._history or self._history[0]!=v:
-            self._history.insert(0,v)
-            del self._history[10:]
+    def _remember(self,v,src=""):
+        if self._history and self._history[0]["v"]==v: return
+        self._history.insert(0,{"v":v,"src":src})
+        del self._history[10:]
 
     def _show_history(self):
         if not self._history:
@@ -1404,8 +1442,8 @@ class BitForge(QMainWindow):
             return
         m=self._menu()
         acts=[]
-        for v in self._history:
-            acts.append(m.addAction(self._history_entry_label(v)))
+        for entry in self._history:
+            acts.append(m.addAction(self._history_entry_label(entry)))
         m.addSeparator()
         a_clr=m.addAction("清空历史")
         act=m.exec_(self._hist_btn.mapToGlobal(self._hist_btn.rect().bottomLeft()))
@@ -1413,13 +1451,14 @@ class BitForge(QMainWindow):
         if act==a_clr:
             self._history=[]; self._toast("历史已清空","success")
         else:
-            self._load_value(self._history[acts.index(act)])
+            self._load_value(self._history[acts.index(act)]["v"])
             self._toast(f"已载入 0x{self._value:X}","success")
 
-    @staticmethod
-    def _history_entry_label(v):
+    def _history_entry_label(self,entry):
+        v=entry["v"]; src=entry.get("src","")
         bits=next(b for b in BIT_MASKS if v<=BIT_MASKS[b])
-        return f"0x{v:X}    {v}    {bits} bit"
+        head=f"{src}  →  " if src else ""
+        return f"{head}0x{v:X}    {v}    {bits} bit"
 
     def _show_tools(self):
         m=self._menu()
@@ -1466,6 +1505,9 @@ class BitForge(QMainWindow):
         a_favorite=mask_menu.addAction("收藏当前 Mask")
         m.addSeparator()
         appearance=m.addMenu("外观")
+        a_follow=appearance.addAction("跟随系统亮暗")
+        a_follow.setCheckable(True); a_follow.setChecked(self._follow_system)
+        appearance.addSeparator()
         a_light=appearance.addAction("亮色主题")
         a_dark=appearance.addAction("深色主题")
         m.addSeparator()
@@ -1486,8 +1528,14 @@ class BitForge(QMainWindow):
         elif act in mask_actions: self._apply_mask_value(mask_actions[act],"已应用常用 Mask")
         elif act in favorite_actions: self._apply_mask_value(favorite_actions[act],"已应用收藏 Mask")
         elif act==a_favorite: self._remember_mask_favorite()
-        elif act==a_light: self._set_theme("light")
-        elif act==a_dark: self._set_theme("dark")
+        elif act==a_follow:
+            self._set_follow_system(a_follow.isChecked())
+        elif act==a_light:
+            self._follow_system=False; self._settings.setValue("ui/follow_system",False)
+            self._set_theme("light")
+        elif act==a_dark:
+            self._follow_system=False; self._settings.setValue("ui/follow_system",False)
+            self._set_theme("dark")
         elif act==a_help: self._show_help()
         elif act==a_about: self._show_about()
         else:
@@ -1525,7 +1573,7 @@ class BitForge(QMainWindow):
         if self._error: self._error=False
         self._value=clamp(value,64); self._locked=True; self._new_entry=True
         self._entry=self._format_entry(self._value); self._pending=None; self._last_op=None
-        self._set_active_op(None); self._remember(self._value); self._refresh_display()
+        self._set_active_op(None); self._remember(self._value,label); self._refresh_display()
         self._toast(f"{label} · {self._bit_width}b","success")
         dlog("tool", label, "->", hex(self._value), "bits", self._bit_width)
 
@@ -1563,6 +1611,10 @@ class BitForge(QMainWindow):
             btn.set_active(name==op)
 
     # ===== 计算逻辑 =====
+    def _cycle_radix(self,step):
+        order=(16,10,8,2)
+        self._rad(order[(order.index(self._radix)+step)%4])
+
     def _rad(self,r):
         if self._radix==r or self._error: return
         self._radix=r; self._new_entry=False; self._entry=self._format_entry(self._value); self._refresh_radix_buttons(); self._refresh_display()
@@ -1629,8 +1681,10 @@ class BitForge(QMainWindow):
         if self._pending is not None:
             self._last_op={"op":self._pending["op"],"rhs":self._value,
                            "bits":self._pending.get("bits",self._bit_width),"locked":self._pending.get("locked",self._locked)}
+            sym=OP_SYMBOLS.get(self._pending["op"],self._pending["op"])
+            src=f"{self._pending['lhs']} {sym} {self._value}"
             self._evaluate()
-            if not self._error: self._remember(self._value)
+            if not self._error: self._remember(self._value,src)
             self._new_entry=True
             self._set_active_op(None)
             self._refresh_display(); return
@@ -1644,7 +1698,8 @@ class BitForge(QMainWindow):
                 return
             if self._last_op.get("locked",False): self._bit_width=bits; self._locked=True; r=clamp(r,bits)
             self._value=self._fit_value(r); self._entry=self._format_entry(self._value)
-            self._remember(self._value)
+            sym=OP_SYMBOLS.get(self._last_op["op"],self._last_op["op"])
+            self._remember(self._value,f"重复 {self._value} {sym} {self._last_op['rhs']}")
             self._new_entry=True
             self._set_active_op(None)
             self._refresh_display()
@@ -1821,9 +1876,7 @@ class BitForge(QMainWindow):
                 self._aux_labels[name].setText(html)
         # 显示区左下角 pending 表达式
         if self._pending is not None:
-            sym={"add":"+","sub":"\u2212","mul":"\u00d7","div":"\u00f7","mod":"%",
-                 "and":"AND","or":"OR","xor":"XOR","lsh":"<<","rsh":">>",
-                 "rol":"ROL","ror":"ROR"}[self._pending["op"]]
+            sym=OP_SYMBOLS[self._pending["op"]]
             expr=f"{self._pending['lhs']} {sym}"
         else:
             expr=""
@@ -1917,6 +1970,9 @@ class BitForge(QMainWindow):
         if k==Qt.Key_C and e.modifiers() & Qt.ControlModifier: self._copy_current(); return
         if k==Qt.Key_V and e.modifiers() & Qt.ControlModifier: self._paste(); return
         if tx=="?": self._toggle_shortcut_overlay(); return   # 需先于 "/" 运算映射
+        if k==Qt.Key_Backtab: self._cycle_radix(-1); return
+        if k==Qt.Key_Tab and not isinstance(QApplication.focusWidget(),QLineEdit):
+            self._cycle_radix(-1 if e.modifiers() & Qt.ShiftModifier else 1); return
         if tx in "0123456789": self._input_digit(tx); return
         if tx.lower() in "abcdef" and self._radix==16: self._input_digit(tx.upper()); return
         om={Qt.Key_Plus:"add",Qt.Key_Minus:"sub",Qt.Key_Asterisk:"mul",
