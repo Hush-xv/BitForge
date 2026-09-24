@@ -3,6 +3,8 @@
 - Result history now records its source: keypad operations, tool actions or the expression text.
 - `Tab` / `Shift+Tab` cycle HEX -> DEC -> OCT -> BIN; text inputs keep standard focus behaviour.
 - New opt-in "follow system" light/dark switch in the Tools > Appearance menu, polling Windows settings.
+- Reject keypad values outside the active word width instead of silently wrapping them.
+- Persist history sources, dispose theme-specific toast animations, and stop system-theme polling in manual mode.
 # Changelog
 
 ## v1.9.2 — Precise display grouping
@@ -52,4 +54,3 @@
 
 - Shift+drag bits to select a contiguous field; a live `SEL hi:lo = value` label appears and click copies the value.
 - Selection auto-clears on AC or when the bit width shrinks below the selection.
-

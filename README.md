@@ -7,7 +7,7 @@
   <b>BitForge</b> — A programmer calculator for embedded engineers.<br>
   一款面向嵌入式工程师的程序员计算器，基于 PyQt5 + SiliconUI。
 </p>
-<p align="center"><b>Current release: v1.9.2</b></p>
+<p align="center"><b>Current release: v1.10.0</b></p>
 
 <p align="center">
   <a href="#features">Features</a> ·

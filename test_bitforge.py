@@ -5,7 +5,7 @@ BitForge — 组合测试套件
 """
 import sys, os, random, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from PyQt5.QtCore import Qt, QEvent, QPoint
+from PyQt5.QtCore import Qt, QEvent, QPoint, QVariantAnimation
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QApplication
 from bitforge import (BIT_MASKS, BitForge, C, DisplayText, byte_swap, clamp, evaluate_expression,
@@ -335,10 +335,10 @@ check("op active cleared by digit", not w._op_btns["add"]._active)
 w._clear_all()
 check("op active cleared by AC", not w._op_btns["add"]._active)
 
-# NOT 保留待定运算: 12 + NOT → 12 + (~12)
+# NOT 保留待定运算: 12 + NOT → 12 + (~12) (按待定位宽 8 bit)
 w._value = 12; w._refresh_display()
 w._apply_operator("add"); w._apply_operator("not")
-check("NOT keeps pending", w._pending is not None and w._pending["lhs"] == clamp(~12, 64),
+check("NOT keeps pending", w._pending is not None and w._pending["lhs"] == clamp(~12, 8),
       hex(w._pending["lhs"]) if w._pending else "None")
 w._clear_all()
 
@@ -751,6 +751,8 @@ check("Mask reports 64-bit truncation", "已截断 64 bit" in w._mask_le.toolTip
 class _SettingsStub:
     def __init__(self, values): self.values=values
     def value(self, key, default=None, type=None): return self.values.get(key,default)
+    def setValue(self, key, value): self.values[key]=value
+    def remove(self, key): self.values.pop(key,None)
 
 w._settings=_SettingsStub({
     "ui/theme":"light", "calc/radix":16, "calc/signed":True, "calc/locked":True,
@@ -758,7 +760,7 @@ w._settings=_SettingsStub({
     "calc/history":["65535","bad","10"], "calc/expression_history":["1+1","",42], "win/pinned":False,
 })
 w._restore_settings()
-check("session restores current value", w._value==0xFFFF and w._entry=="FFFF", f"{hex(w._value)}/{w._entry}")
+check("session starts with a clean current value", w._value==0 and w._entry=="0", f"{hex(w._value)}/{w._entry}")
 check("session drops invalid history values",
       w._history == [{"v": 0xFFFF, "src": ""}, {"v": 10, "src": ""}], str(w._history))
 check("session restores expression history", w._expression_history==["1+1","42"], str(w._expression_history))
@@ -905,6 +907,92 @@ w._apply_system_theme()
 check("follow on matches system", w._theme == w._system_theme(),
       f"theme={w._theme} system={w._system_theme()}")
 w._follow_system = False; w._set_theme("light")
+
+# ======== 34. Review regression: click targets / copy / recursion ========
+print("=== 34. Review regression: click targets / copy / recursion ===")
+
+indicator=w._bit_indicator
+indicator.set_val(0,32); app.processEvents()
+tw=indicator.width()-2*indicator.M
+bw=(tw-3*indicator.GGAP-(32-4)*indicator.GAP)/32
+first_group_end=indicator.M+8*(bw+indicator.GAP)-indicator.GAP
+next_group_start=first_group_end+indicator.GGAP
+gap_x=int((first_group_end+next_group_start)/2)
+check("Bit Map byte gap is not clickable", indicator._bit_at(gap_x,indicator._single_row_top()+10) is None,
+      str(indicator._bit_at(gap_x,indicator._single_row_top()+10)))
+
+w._value=0x100; w._bit_width=32; w._locked=True; w._refresh_display()
+w._lock_btn.setChecked(False); w._toggle_lock()
+check("unlock refreshes automatic width immediately", w._bit_width==16 and w._bit_width_lb.text()=="16b",
+      f"{w._bit_width}/{w._bit_width_lb.text()}")
+
+w._display_value="0x1234"; w._set_error("test")
+QApplication.clipboard().setText("sentinel"); w._copy_current()
+check("error state shortcut copy preserves clipboard", QApplication.clipboard().text()=="sentinel",
+      QApplication.clipboard().text())
+w._clear_all()
+
+try:
+    evaluate_expression("("*129+"1"+")"*129)
+    nested_rejected=False
+except ValueError:
+    nested_rejected=True
+check("deep expression returns a validation error", nested_rejected)
+
+# ======== 35. Deep review regression: width input / session / theme ========
+print("=== 35. Deep review regression: width input / session / theme ===")
+
+w._clear_all(); w._rad(10); w._set_bit_width(8)
+for digit in "256": w._input_digit(digit)
+check("locked input rejects values outside word width", w._value==25 and w._entry=="25" and w._display_value=="25",
+      f"value={w._value} entry={w._entry} display={w._display_value}")
+
+w._clear_all(); w._rad(10)
+for digit in "18446744073709551616": w._input_digit(digit)
+check("64-bit decimal overflow keeps the last valid value",
+      w._value==1844674407370955161 and w._entry=="1844674407370955161",
+      f"value={w._value} entry={w._entry}")
+
+w._clear_all(); w._rad(2)
+for digit in "1"*9: w._input_digit(digit)
+check("automatic binary input grows past 8 bits", w._value==0x1FF and w._bit_width==16 and len(w._entry)==9,
+      f"value={w._value} bits={w._bit_width} entry={w._entry}")
+
+restored=BitForge._restore_history(['{"v":4660,"src":"表达式"}', "10"],10)
+check("history restoration keeps source and legacy entries",
+      restored==[{"v":4660,"src":"表达式"},{"v":10,"src":""}], str(restored))
+
+before_animations=len(w.findChildren(QVariantAnimation))
+for theme in ("dark","light","dark","light"):
+    w._set_theme(theme); app.processEvents()
+after_animations=len(w.findChildren(QVariantAnimation))
+check("theme switches do not accumulate toast animations", after_animations<=before_animations+1,
+      f"before={before_animations} after={after_animations}")
+w._set_follow_system(True); w._set_follow_system(False)
+check("manual theme mode stops system polling", not w._sys_timer.isActive())
+
+# ======== 36. Signed arithmetic semantics ========
+print("=== 36. Signed arithmetic semantics ===")
+
+check("signed helper division truncates toward zero", BitForge._compute("div",0xFE,2,8,True)==-1)
+check("signed helper modulo keeps dividend sign", BitForge._compute("mod",0xFD,2,8,True)==-1)
+check("signed helper right shift sign-extends", BitForge._compute("rsh",0x80,1,8,True)==-64)
+check("signed expression division", evaluate_expression("-2 / 2",8,True)==0xFF,
+      hex(evaluate_expression("-2 / 2",8,True)))
+check("signed expression right shift", evaluate_expression("-128 >> 1",8,True)==0xC0,
+      hex(evaluate_expression("-128 >> 1",8,True)))
+
+w._clear_all(); w._rad(10); w._set_bit_width(8); w._signed=True
+w._value=0xFE; w._entry="-2"; w._refresh_display()
+w._apply_operator("div"); w._value=2; w._entry="2"; w._equals()
+check("signed keypad division displays -1", w._value==0xFF and w._aux_value("DEC")=="-1",
+      f"value={hex(w._value)} dec={w._aux_value('DEC')}")
+
+w._value=0x80; w._entry="-128"; w._refresh_display()
+w._apply_operator("rsh"); w._value=1; w._entry="1"; w._equals()
+check("signed keypad right shift displays -64", w._value==0xC0 and w._aux_value("DEC")=="-64",
+      f"value={hex(w._value)} dec={w._aux_value('DEC')}")
+w._signed=False
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")

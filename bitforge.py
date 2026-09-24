@@ -7,6 +7,7 @@ BitForge — Programmer Calculator (Fast Edition)
 调试: 设 BITFORGE_DEBUG=1 输出关键路径日志
 """
 
+import json
 import os
 import re
 import sys
@@ -81,7 +82,7 @@ _EXPR_TOKEN=re.compile(r"\s*(0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|\d+|<<|>>|
 _EXPR_PRECEDENCE={"|":1,"OR":1,"^":2,"XOR":2,"&":3,"AND":3,
                   "<<":4,">>":4,"+":5,"-":5,"*":6,"/":6,"%":6}
 
-def evaluate_expression(text, b=64):
+def evaluate_expression(text, b=64, signed=False):
     """Evaluate a bounded programmer-calculator expression without Python eval."""
     tokens=[]; pos=0
     while pos<len(text):
@@ -91,6 +92,22 @@ def evaluate_expression(text, b=64):
             break
         token=m.group(1); tokens.append(token.upper() if token.isalpha() else token); pos=m.end()
     if not tokens: raise ValueError("请输入表达式")
+    depth=prefix_count=0
+    for token in tokens:
+        if token=="(":
+            depth+=1; prefix_count=0
+            if depth>128:
+                dlog("expression rejected: nesting depth", depth)
+                raise ValueError("表达式嵌套过深")
+        elif token==")":
+            depth-=1; prefix_count=0
+        elif token in ("~","NOT","+","-"):
+            prefix_count+=1
+            if prefix_count>128:
+                dlog("expression rejected: prefix depth", prefix_count)
+                raise ValueError("表达式前缀过深")
+        else:
+            prefix_count=0
     index=0
 
     def binary(op,left,right):
@@ -102,16 +119,26 @@ def evaluate_expression(text, b=64):
             value=0 if right>=b else left<<right
         elif op==">>":
             if right<0: raise ValueError("移位量不能为负")
-            value=0 if right>=b else left>>right
+            if right>=b:
+                value=-1 if signed and to_signed(left,b)<0 else 0
+            else:
+                value=to_signed(left,b)>>right if signed else left>>right
         elif op=="+": value=left+right
         elif op=="-": value=left-right
         elif op=="*": value=left*right
         elif op=="/":
             if right==0: raise ValueError("除数不能为 0")
-            value=left//right
+            if signed:
+                left,right=to_signed(left,b),to_signed(right,b)
+                value=(abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
+            else: value=left//right
         elif op=="%":
             if right==0: raise ValueError("除数不能为 0")
-            value=left%right
+            if signed:
+                left,right=to_signed(left,b),to_signed(right,b)
+                quotient=(abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
+                value=left-quotient*right
+            else: value=left%right
         return clamp(value,b)
 
     def parse_prefix():
@@ -384,7 +411,7 @@ class BitGlow(QWidget):
         super().__init__(parent)
         # Keep a 64-bit-sized slot at every width so content below never shifts.
         self._value=0; self._bits=32; self.setFixedHeight(82)
-        self._cache=None; self._bw_cache=None; self._dirty=True
+        self._cache=None; self._dirty=True
         self._font=QFont("Consolas",9); self._mask=0
         self._sel=None; self._anchor=None   # 位域选择: (lo,hi) 闭区间 / 拖拽锚点
         self._flash={}                       # 位翻转闪烁: bit → 剩余帧数
@@ -432,7 +459,6 @@ class BitGlow(QWidget):
         cols=32 if self._bits>32 else self._bits
         grps=cols//8; tw=w-2*m
         bw=(tw-(grps-1)*ggap-(cols-grps)*gap)/cols; bw=max(bw,7)
-        self._bw_cache=bw
 
         if self._bits>32:
             mid=self.height()//2
@@ -453,7 +479,9 @@ class BitGlow(QWidget):
         grp_total=8*bw+7*gap+ggap; rel_x=x-m
         if rel_x<0: return None
         gi=int(rel_x//grp_total); inner_x=rel_x-gi*grp_total
-        bi=min(int(inner_x//(bw+gap)),7)
+        bi=int(inner_x//(bw+gap))
+        # Gaps between cells and byte groups are not clickable targets.
+        if gi>=grps or bi>=8 or inner_x-bi*(bw+gap)>=bw: return None
         bit_pos=(self._bits-1 if self._bits<=32 else 31)-(gi*8+bi)+bit_off
         return bit_pos if 0<=bit_pos<self._bits else None
 
@@ -531,7 +559,6 @@ class BitGlow(QWidget):
                 (s[:half],2,half),(s[half:],mid+2,0)]):
                 tw=w-2*m; gs=[seg[i:i+8] for i in range(0,half,8)]
                 bw=(tw-(len(gs)-1)*ggap-(half-len(gs))*gap)/half; bw=max(bw,7)
-                if row_idx==0: self._bw_cache=bw
                 pt=8 if bw>=12 else(7 if bw>=9 else 6)
                 p.setFont(QFont("Consolas",pt))
                 x=m; bit_idx=half-1+bo
@@ -574,7 +601,6 @@ class BitGlow(QWidget):
             gs=[s[i:i+8] for i in range(0,self._bits,8)]
             tw=w-2*m
             bw=(tw-(len(gs)-1)*ggap-(self._bits-len(gs))*gap)/self._bits; bw=max(bw,7)
-            self._bw_cache=bw
             pt=8 if bw>=12 else(7 if bw>=9 else 6)
             p.setFont(QFont("Consolas",pt))
             x=m; y=self._single_row_top()-2; bit_idx=self._bits-1
@@ -712,6 +738,8 @@ class BitForge(QMainWindow):
         self.setStyleSheet(f"QMainWindow{{background:{C['win']};}}")
 
     def _set_display_color(self,color):
+        if getattr(self,"_display_color_last",None)==color: return   # 每键样式重刷防护
+        self._display_color_last=color
         self._display.setTextColor(color)
         self._display.setStyleSheet(f"background:transparent;color:{color};border:none;")
 
@@ -964,7 +992,7 @@ class BitForge(QMainWindow):
         # 淡入淡出
         self._toast_effect=QGraphicsOpacityEffect(self._toast_lb)
         self._toast_lb.setGraphicsEffect(self._toast_effect)
-        self._toast_anim=QVariantAnimation(self); self._toast_anim.setDuration(140)
+        self._toast_anim=QVariantAnimation(self._toast_lb); self._toast_anim.setDuration(140)
         self._toast_anim.valueChanged.connect(lambda v: self._toast_effect.setOpacity(float(v)))
         self._toast_anim.finished.connect(self._toast_fade_done)
 
@@ -981,7 +1009,8 @@ class BitForge(QMainWindow):
     def _toggle_shortcut_overlay(self):
         """按 ? 弹出/关闭快捷键速查浮层 (点外部或 Esc 关闭)。"""
         if getattr(self,"_shortcut_overlay",None) and self._shortcut_overlay.isVisible():
-            self._shortcut_overlay.close(); return
+            self._shortcut_overlay.close(); self._shortcut_overlay.deleteLater()
+            self._shortcut_overlay=None; return
         ov=QWidget(self, Qt.Popup|Qt.FramelessWindowHint)
         ov.setObjectName("shortcutOverlay")
         ov.setAttribute(Qt.WA_TranslucentBackground)
@@ -1112,9 +1141,10 @@ class BitForge(QMainWindow):
             self._field_recent=(max(0,recent_start),max(1,recent_width))
         except (TypeError,ValueError): self._field_recent=(0,1)
         self._pinned=s.value("win/pinned",False,type=bool)
-        try: self._value=clamp(int(s.value("calc/value","0")),64)
-        except (TypeError,ValueError): self._value=0
-        self._history=[{"v":n,"src":""} for n in self._restore_number_history(s.value("calc/history",[]),10)]
+        # Each launch starts with a clean calculator value; preferences and history still persist.
+        self._value=0
+        dlog("session current value reset")
+        self._history=self._restore_history(s.value("calc/history",[]),10)
         raw_expr=s.value("calc/expression_history",[])
         if not isinstance(raw_expr,(list,tuple)): raw_expr=[] if raw_expr in (None,"") else [raw_expr]
         self._expression_history=[str(v) for v in raw_expr if str(v).strip()][:5]
@@ -1128,6 +1158,24 @@ class BitForge(QMainWindow):
         for value in raw[:limit]:
             try: result.append(clamp(int(value),64))
             except (TypeError,ValueError): continue
+        return result
+
+    @staticmethod
+    def _restore_history(raw,limit):
+        """Restore current history entries and accept pre-v1.10 numeric-only entries."""
+        if not isinstance(raw,(list,tuple)): raw=[] if raw in (None,"") else [raw]
+        result=[]
+        for entry in raw[:limit]:
+            try:
+                data=json.loads(entry) if isinstance(entry,str) and entry.lstrip().startswith("{") else entry
+                if isinstance(data,dict):
+                    value=clamp(int(data["v"]),64); source=str(data.get("src", ""))
+                else:
+                    value=clamp(int(data),64); source=""
+            except (TypeError,ValueError,KeyError,json.JSONDecodeError):
+                dlog("history restore rejected:", entry)
+                continue
+            result.append({"v":value,"src":source})
         return result
 
     def _apply_theme_colors(self):
@@ -1163,9 +1211,9 @@ class BitForge(QMainWindow):
             s.setValue("calc/mask_favorites",[str(v) for v in self._mask_favorites])
             s.setValue("calc/field_start",self._field_recent[0])
             s.setValue("calc/field_width",self._field_recent[1])
-            s.setValue("calc/value",str(self._value))
+            s.remove("calc/value")
             s.setValue("calc/mask",self._mask_le.text())
-            s.setValue("calc/history",[str(h["v"]) for h in self._history])
+            s.setValue("calc/history",[json.dumps(h,ensure_ascii=False,separators=(",",":")) for h in self._history])
             s.setValue("calc/expression_history",self._expression_history)
             s.setValue("win/pinned",self._pinned)
             s.setValue("win/geometry",bytes(self.saveGeometry().toBase64()).decode())
@@ -1246,6 +1294,8 @@ class BitForge(QMainWindow):
         self._locked=self._lock_btn.isChecked()
         self._lock_btn.setToolTip("位宽已锁定" if self._locked else "锁定当前位宽")
         self._lock_btn.setStyleSheet(self._lock_btn_style(self._locked))
+        self._refresh_display()
+        dlog("bit width lock:", self._locked, "bits", self._bit_width)
         self._toast("位宽已锁定" if self._locked else "位宽自动")
 
     def _step_bw_up(self):
@@ -1337,6 +1387,10 @@ class BitForge(QMainWindow):
         dlog("copy", label, text)
 
     def _copy_current(self):
+        if self._error:
+            self._toast("错误状态无可复制值","warning")
+            dlog("copy rejected: error state")
+            return
         self._copy_text(self._display_value,"当前值")
 
     def _copy_radix(self,name):
@@ -1360,8 +1414,8 @@ class BitForge(QMainWindow):
             dlog("paste parse failed:", text)
             return
         self._load_value(v)
-        truncated=v < -(1<<63) or v > BIT_MASKS[64]
-        self._toast(f"已粘贴 {text}"+(" · 已截断为 64 bit" if truncated else ""),"warning" if truncated else "success")
+        truncated=v < -(1<<63) or v > BIT_MASKS[64] or v != self._value
+        self._toast(f"已粘贴 {text}"+(" · 已截断" if truncated else ""),"warning" if truncated else "success")
         dlog("paste", text, "->", hex(self._value))
 
     def _flash_expr_bar(self,color):
@@ -1373,8 +1427,8 @@ class BitForge(QMainWindow):
     def _evaluate_expression(self):
         text=self._expression_input.text().strip()
         bits=self._bit_width if self._locked else 64
-        try: value=evaluate_expression(text,bits)
-        except ValueError as exc:
+        try: value=evaluate_expression(text,bits,self._signed)
+        except (ValueError,RecursionError) as exc:
             self._toast(f"表达式错误：{exc}","error")
             self._flash_expr_bar(C["dsp_neg"])
             dlog("expression failed:", text, exc)
@@ -1531,10 +1585,10 @@ class BitForge(QMainWindow):
         elif act==a_follow:
             self._set_follow_system(a_follow.isChecked())
         elif act==a_light:
-            self._follow_system=False; self._settings.setValue("ui/follow_system",False)
+            self._set_follow_system(False)
             self._set_theme("light")
         elif act==a_dark:
-            self._follow_system=False; self._settings.setValue("ui/follow_system",False)
+            self._set_follow_system(False)
             self._set_theme("dark")
         elif act==a_help: self._show_help()
         elif act==a_about: self._show_about()
@@ -1623,20 +1677,26 @@ class BitForge(QMainWindow):
         if self._error: self._clear_all()
         if d not in RADIX_DIGITS.get(self._radix,""):
             dlog("digit rejected:", d, "radix:", self._radix); return
-        mx={2:self._bit_width,8:22,10:20,16:16}[self._radix]
+        mx={2:self._bit_width if self._locked else 64,8:22,10:20,16:16}[self._radix]
         if self._new_entry:
-            self._entry=d; self._new_entry=False
-            self._set_active_op(None)   # 开始输入新操作数, 熄灭运算符高亮
+            candidate=d
         elif self._entry=="0":
-            self._entry=d   # 前导零不叠加
+            candidate=d   # 前导零不叠加
         else:
-            if len(self._entry)>=mx:
+            candidate=self._entry+d
+            if len(candidate)>mx:
                 self._toast("当前位宽已达输入上限")
                 dlog("input max length:", self._entry, "radix:", self._radix); return
-            self._entry+=d
-        try: self._value=clamp(int(self._entry,self._radix),64)
+        try: value=int(candidate,self._radix)
         except ValueError:
-            dlog("int parse failed:", self._entry, "radix:", self._radix); return
+            dlog("int parse failed:", candidate, "radix:", self._radix); return
+        bits=self._bit_width if self._locked else 64
+        if value>BIT_MASKS[bits]:
+            self._toast(f"超出当前 {bits} 位范围")
+            dlog("input overflow:", candidate, "bits:", bits); return
+        if self._new_entry:
+            self._new_entry=False; self._set_active_op(None)
+        self._entry=candidate; self._value=value
         self._refresh_display()
 
     def _clear_all(self):
@@ -1652,7 +1712,9 @@ class BitForge(QMainWindow):
         else: self._entry=self._entry[:-1]
         try: v=int(self._entry,self._radix) if self._entry else 0; self._value=clamp(v,64)
         except ValueError:
-            dlog("backspace parse failed:", self._entry, "radix:", self._radix); return
+            # 有符号负数退格到 "-" 时无法解析, 归零避免卡键
+            self._entry="0"; self._value=0; self._new_entry=True
+            self._refresh_display(); return
         self._refresh_display()
 
     def _apply_operator(self,op):
@@ -1660,7 +1722,7 @@ class BitForge(QMainWindow):
         if op=="not":
             # 待定运算存在时 NOT 作用于等待中的操作数, 保留待定关系
             if self._pending is not None and self._new_entry:
-                bits=self._pending["bits"] if self._pending.get("locked") else 64
+                bits=self._pending.get("bits",self._bit_width)   # 与随后的 = 使用同一位宽
                 self._pending["lhs"]=clamp(~self._pending["lhs"],bits)
                 self._value=self._pending["lhs"]
                 self._refresh_display(); return
@@ -1668,11 +1730,13 @@ class BitForge(QMainWindow):
             self._value=clamp(~self._value,bits); self._entry=self._format_entry(self._value); self._new_entry=True; self._pending=None; self._refresh_display(); return
         # 尚未输入第二个操作数 → 替换运算符, 不提前计算
         if self._pending is not None and self._new_entry:
-            self._pending={"op":op,"lhs":self._pending["lhs"],"bits":self._bit_width,"locked":self._locked}
+            self._pending={"op":op,"lhs":self._pending["lhs"],"bits":self._bit_width,
+                           "locked":self._locked,"signed":self._signed}
             self._set_active_op(op)
             self._refresh_display(); return
         if self._pending is not None: self._evaluate()
-        self._pending={"op":op,"lhs":self._value,"bits":self._bit_width,"locked":self._locked}; self._new_entry=True
+        self._pending={"op":op,"lhs":self._value,"bits":self._bit_width,
+                       "locked":self._locked,"signed":self._signed}; self._new_entry=True
         self._set_active_op(op)
         self._refresh_display()
 
@@ -1680,7 +1744,8 @@ class BitForge(QMainWindow):
         if self._error: return
         if self._pending is not None:
             self._last_op={"op":self._pending["op"],"rhs":self._value,
-                           "bits":self._pending.get("bits",self._bit_width),"locked":self._pending.get("locked",self._locked)}
+                           "bits":self._pending.get("bits",self._bit_width),"locked":self._pending.get("locked",self._locked),
+                           "signed":self._pending.get("signed",self._signed)}
             sym=OP_SYMBOLS.get(self._pending["op"],self._pending["op"])
             src=f"{self._pending['lhs']} {sym} {self._value}"
             self._evaluate()
@@ -1692,7 +1757,8 @@ class BitForge(QMainWindow):
             # 连按 =: 重复上次运算 (结果 op rhs)
             try:
                 bits=self._last_op.get("bits",self._bit_width)
-                r=self._compute(self._last_op["op"],self._value,self._last_op["rhs"],bits)
+                r=self._compute(self._last_op["op"],self._value,self._last_op["rhs"],bits,
+                                self._last_op.get("signed",self._signed))
             except (ZeroDivisionError,ValueError):
                 self._set_error("除数不能为 0")
                 return
@@ -1708,7 +1774,7 @@ class BitForge(QMainWindow):
         if self._pending is None: return
         op,lhs,rhs=self._pending["op"],self._pending["lhs"],self._value
         bits=self._pending.get("bits",self._bit_width)
-        try: r=self._compute(op,lhs,rhs,bits)
+        try: r=self._compute(op,lhs,rhs,bits,self._pending.get("signed",self._signed))
         except (ZeroDivisionError,ValueError):
             self._set_error("除数不能为 0" if op in ("div","mod") and rhs==0 else "计算失败")
             return
@@ -1719,23 +1785,35 @@ class BitForge(QMainWindow):
         self._value=self._fit_value(r); self._entry=self._format_entry(self._value); self._pending=None
 
     @staticmethod
-    def _compute(op,l,r,b=64):
+    def _compute(op,l,r,b=64,signed=False):
         if op=="add": return l+r
         if op=="sub": return l-r
         if op=="mul": return l*r
         if op=="div":
             if r==0: raise ZeroDivisionError()
-            return l//r
+            if not signed: return l//r
+            left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
+            dlog("signed compute", op, left, right, "bits", b)
+            return (abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
         if op=="mod":
             if r==0: raise ZeroDivisionError()
-            return l%r
+            if not signed: return l%r
+            left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
+            quotient=(abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
+            dlog("signed compute", op, left, right, "bits", b)
+            return left-quotient*right
         if op=="and": return l&r
         if op=="or":  return l|r
         if op=="xor": return l^r
         if op=="lsh":
             return 0 if r>=64 else l<<r   # r 超出 64 位空间一律为 0, 防止无界分配
         if op=="rsh":
-            return 0 if r>=64 else l>>r
+            if r>=b: return -1 if signed and to_signed(clamp(l,b),b)<0 else 0
+            if signed:
+                left=to_signed(clamp(l,b),b)
+                dlog("signed compute", op, left, r, "bits", b)
+                return left>>r
+            return l>>r
         if op=="rol": return rotate_left(l,b,r)
         if op=="ror": return rotate_right(l,b,r)
         return l
@@ -1775,16 +1853,10 @@ class BitForge(QMainWindow):
         return "0x"+u.to_bytes(self._bit_width//8,"big")[::-1].hex().upper()
 
     def _group_display(self,text):
-        if self._radix not in (2,16): return text
-        prefix,digits=text[:2],text[2:]
-        # Long values favor a readable font over separators. The raw value remains visible in full.
-        if (self._radix==16 and len(digits)>8) or (self._radix==2 and len(digits)>32):
-            return text
-        step=4 if self._radix==2 else 2
-        groups=[]
-        while digits:
-            groups.append(digits[-step:]); digits=digits[:-step]
-        return prefix+" ".join(reversed(groups))
+        groups=self._display_groups(text)
+        if groups is None: return text
+        prefix,parts=groups
+        return prefix+" ".join(parts)
 
     def _display_groups(self,text):
         if self._radix not in (2,16): return None
