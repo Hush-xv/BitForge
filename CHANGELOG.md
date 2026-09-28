@@ -1,3 +1,12 @@
+## v1.14.1 — Interaction detail fixes
+
+- Fixed empty-text key events (`"" in "0123456789"` is always true) swallowing F1 / F2 / Delete / arrow keys before their handlers could run — F1 help, F2 expression focus and Delete clear had been unreachable from the physical keyboard since v1.0.
+- F2 now also selects the existing expression text, so typing replaces it directly.
+- An empty expression input evaluates silently (no error toast) on Enter.
+- The bit-field editor's 应用 button is the default (Enter applies).
+- Bit-width steppers give feedback when already at 64-bit / 8-bit limits instead of doing nothing silently.
+- Fixed DEC thousands-grouping never appearing on animated results: the value animation now repaints the final `DisplayModel` on finish (animation deltas 10–50000 had left ungrouped text on screen until the next refresh).
+
 ## v1.14.0 — Expression refill & bit-field editor
 
 - The history menu (⏱) now also lists recent expressions under a "最近表达式" section; picking one refills the expression input via the shared `_load_expression` helper (deduplicated with the input's context menu).

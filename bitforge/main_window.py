@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.14.0"
+    APP = "BitForge"; VER = "v1.14.1"
 
     def __init__(self):
         super().__init__()
@@ -52,7 +52,8 @@ class BitForge(QMainWindow):
         self._value_anim.setEasingCurve(QEasingCurve.OutCubic)
         self._value_anim.valueChanged.connect(self._ani_set_text)
         self._ani_last=""; self._ani_running=False
-        self._value_anim.finished.connect(lambda: setattr(self,'_ani_running',False))
+        self._last_model=None            # 最近一次 DisplayModel (动画结束回填分组文本用)
+        self._value_anim.finished.connect(self._on_anim_finished)
         self._sys_timer=QTimer(self); self._sys_timer.setInterval(3000)
         self._sys_timer.timeout.connect(self._apply_system_theme)
         self._build_ui()
@@ -121,6 +122,16 @@ class BitForge(QMainWindow):
 
     @property
     def _redo_stack(self): return self._state._redo_stack
+
+    def _on_anim_finished(self):
+        """动画结束 (含 stop 触发) 后按最终模型重绘显示, 保证千分位分组文本回填。"""
+        self._ani_running=False
+        m=self._last_model
+        if m is None: return
+        if m.groups:
+            self._display.setGroupedText(*m.groups,m.visual)
+        else:
+            self._display.setText(m.display_text)
 
     def _ani_set_text(self,val):
         self._display.setText(f"{val:.0f}")
@@ -677,7 +688,7 @@ class BitForge(QMainWindow):
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
-        self._aux_last={}; self._expr_last=""; self._status_last=None; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
+        self._aux_last={}; self._expr_last=""; self._status_last=None; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None; self._last_model=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
         self._update_layout_density(); self._refresh_display()
         if self._error:
@@ -799,11 +810,13 @@ class BitForge(QMainWindow):
         for b in (16,32,64):
             if self._bit_width<b:
                 self._set_bit_width(b); return
+        self._toast("已是 64 bit 上限","warning")
 
     def _step_bw_dn(self):
         for b in (32,16,8):
             if self._bit_width>b:
                 self._set_bit_width(b); return
+        self._toast("已到 8 bit 下限","warning")
 
     def _show_bit_width_menu(self):
         m=self._menu()
@@ -919,6 +932,7 @@ class BitForge(QMainWindow):
 
     def _evaluate_expression(self):
         text=self._expression_input.text().strip()
+        if not text: return   # 空输入静默忽略, 不报错误
         bits=self._bit_width if self._locked else 64
         try: value=evaluate_expression(text,bits,self._signed)
         except (ValueError,RecursionError) as exc:
@@ -1174,7 +1188,7 @@ class BitForge(QMainWindow):
         mode_box.currentTextChanged.connect(lambda _: sync_preview())
         sync_preview()
         buttons=QHBoxLayout()
-        ok=QPushButton("应用"); ok.setFixedHeight(30); ok.clicked.connect(d.accept)
+        ok=QPushButton("应用"); ok.setFixedHeight(30); ok.setDefault(True); ok.clicked.connect(d.accept)
         cancel=QPushButton("取消"); cancel.setFixedHeight(30); cancel.clicked.connect(d.reject)
         buttons.addStretch(1); buttons.addWidget(cancel); buttons.addWidget(ok)
         form.addRow("起始位 (LSB=0)",start); form.addRow("宽度",width)
@@ -1308,6 +1322,7 @@ class BitForge(QMainWindow):
                     self._value_anim.start()
             except ValueError: pass
         self._ani_last=m.raw
+        self._last_model=m
         if not self._ani_running:
             if m.groups:
                 self._display.setGroupedText(*m.groups,m.visual)
@@ -1442,8 +1457,8 @@ class BitForge(QMainWindow):
         if k==Qt.Key_Backtab: self._cycle_radix(-1); return
         if k==Qt.Key_Tab and not isinstance(QApplication.focusWidget(),QLineEdit):
             self._cycle_radix(-1 if e.modifiers() & Qt.ShiftModifier else 1); return
-        if tx in "0123456789": self._input_digit(tx); return
-        if tx.lower() in "abcdef" and self._radix==16: self._input_digit(tx.upper()); return
+        if tx and tx in "0123456789": self._input_digit(tx); return
+        if tx and tx.lower() in "abcdef" and self._radix==16: self._input_digit(tx.upper()); return
         om={Qt.Key_Plus:"add",Qt.Key_Minus:"sub",Qt.Key_Asterisk:"mul",
             Qt.Key_Slash:"div",Qt.Key_Percent:"mod",
             Qt.Key_Ampersand:"and",Qt.Key_Bar:"or",Qt.Key_AsciiCircum:"xor"}
@@ -1455,5 +1470,8 @@ class BitForge(QMainWindow):
         if k==Qt.Key_Less: self._apply_operator("lsh"); return
         if k==Qt.Key_Greater: self._apply_operator("rsh"); return
         if k==Qt.Key_F1: self._show_help(); return
-        if k==Qt.Key_F2: self._expression_input.setFocus(); return
+        if k==Qt.Key_F2:
+            self._expression_input.setFocus()
+            self._expression_input.selectAll()   # 全选现有文本, 直接输入即替换
+            return
         super().keyPressEvent(e)

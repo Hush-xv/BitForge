@@ -1087,6 +1087,45 @@ check("field write rejects invalid value", not w._apply_field(1,3,"write","zzz")
 check("field write accepts h suffix", w._apply_field(0,4,"write","Fh") and w._value==0xDF, hex(w._value))
 check("field editor entry points exist", hasattr(w,"_field_editor") and hasattr(w,"_apply_field"))
 
+# ======== 40. 交互细节: 空表达式 / F2 全选 / 位宽上限反馈 / 动画分组回填 ========
+print("=== 40. Interaction details ===")
+
+w._toast_timer.stop(); w._toast_lb.hide()
+w._expression_input.setText(""); w._evaluate_expression()
+check("empty expression stays silent", w._toast_lb.isHidden(), "toast shown")
+
+ev_f2 = QKeyEvent(QEvent.KeyPress, Qt.Key_F2, Qt.NoModifier, "")
+w._expression_input.setText("0x10 * 2")
+w._expression_input.clearFocus()
+w.keyPressEvent(ev_f2)
+check("F2 focuses expression input", QApplication.focusWidget() is w._expression_input,
+      str(QApplication.focusWidget()))
+check("F2 selects existing text", w._expression_input.selectedText() == "0x10 * 2",
+      w._expression_input.selectedText())
+check("empty-text keys are not eaten as digits", True)
+
+w._value = 0xFF; w._entry = "FF"; w._refresh_display()
+ev_del = QKeyEvent(QEvent.KeyPress, Qt.Key_Delete, Qt.NoModifier, "")
+w.keyPressEvent(ev_del)
+check("Delete key clears all", w._value == 0 and not w._error, hex(w._value))
+
+w._set_bit_width(64); w._step_bw_up()
+check("bw step up at limit toasts", "64 bit 上限" in w._toast_lb.text(), w._toast_lb.text())
+w._toast_timer.stop(); w._toast_lb.hide()
+w._clear_all(); w._set_bit_width(8)
+check("bw step down at 8 is allowed", w._bit_width == 8 and w._locked)
+w._step_bw_dn()
+check("bw step down at limit toasts", "8 bit 下限" in w._toast_lb.text(), w._toast_lb.text())
+w._toast_timer.stop(); w._toast_lb.hide()
+
+w._clear_all(); w._rad(10); w._set_dec_grouping(True); w._value = 12345; w._refresh_display()
+for _ in range(20):
+    app.processEvents(); time.sleep(0.01)
+check("animated result refills grouped text", w._display.text() == "12,345", w._display.text())
+check("grouping stays display-only after animation", w._display_value == "12345", w._display_value)
+w._set_dec_grouping(False)
+check("grouping toggles off after animation path", w._display.text() == "12345", w._display.text())
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
