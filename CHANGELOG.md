@@ -1,3 +1,10 @@
+## v1.14.0 — Expression refill & bit-field editor
+
+- The history menu (⏱) now also lists recent expressions under a "最近表达式" section; picking one refills the expression input via the shared `_load_expression` helper (deduplicated with the input's context menu).
+- Replaced the two-step `QInputDialog` flow for bit fields with a single dialog: start bit / width / operation / write value with a live preview of the current field value; ranges clamp against the active word width.
+- Extraction and write share the testable `_apply_field` entry point (history source labels unchanged); invalid write values and out-of-range fields report toasts instead of dialogs.
+- New coverage: expression refill, field extract/write/reject semantics and recent-range memory (`test_bitforge` §39).
+
 ## v1.13.0 — Status micro-line & DEC grouping
 
 - Added a status micro-line in the display card's top-left corner: `32 BIT · UNSIGNED · LOCKED` updates live and never steals mouse events.

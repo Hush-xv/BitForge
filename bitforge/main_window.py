@@ -5,9 +5,9 @@ from PyQt5.QtCore import (Qt, QTimer, QEasingCurve, QVariantAnimation, QEvent,
                           QPoint, QByteArray, QSettings)
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QKeyEvent
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QFrame, QGraphicsOpacityEffect,
-    QHBoxLayout, QInputDialog, QLineEdit, QMainWindow, QLabel, QMenu, QPushButton,
-    QSizePolicy, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QDialog, QFormLayout, QFrame, QGraphicsOpacityEffect,
+    QHBoxLayout, QLineEdit, QMainWindow, QLabel, QMenu, QPushButton,
+    QSizePolicy, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from .core import (BIT_MASKS, RADIX_DIGITS, byte_swap, clamp, dlog,
@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.13.0"
+    APP = "BitForge"; VER = "v1.14.0"
 
     def __init__(self):
         super().__init__()
@@ -942,6 +942,13 @@ class BitForge(QMainWindow):
         del self._expression_history[5:]
         dlog("expression history", len(self._expression_history), text)
 
+    def _load_expression(self,text):
+        """回填一条历史表达式到输入栏并聚焦 (历史菜单与表达式右键菜单共用)。"""
+        self._expression_input.setText(text)
+        self._expression_input.setFocus()
+        self._toast("已载入最近表达式")
+        dlog("expression loaded", text)
+
     def _show_expression_menu(self,pos):
         m=self._expression_input.createStandardContextMenu()
         m.setStyleSheet(self._menu().styleSheet())
@@ -953,9 +960,7 @@ class BitForge(QMainWindow):
             actions=[]; a_clear=None
         act=m.exec_(self._expression_input.mapToGlobal(pos))
         if act in actions:
-            self._expression_input.setText(self._expression_history[actions.index(act)])
-            self._expression_input.setFocus()
-            self._toast("已载入最近表达式")
+            self._load_expression(self._expression_history[actions.index(act)])
         elif act==a_clear:
             self._expression_history=[]
             self._toast("表达式历史已清除","success")
@@ -985,22 +990,30 @@ class BitForge(QMainWindow):
         del self._history[10:]
 
     def _show_history(self):
-        if not self._history:
+        if not self._history and not self._expression_history:
             self._toast("暂无历史")
             return
         m=self._menu()
         acts=[]
         for entry in self._history:
             acts.append(m.addAction(self._history_entry_label(entry)))
+        expr_actions=[]
+        if self._expression_history:
+            m.addSeparator()
+            head=m.addAction("最近表达式")
+            head.setEnabled(False)
+            expr_actions=[m.addAction(f"EXPR · {text}") for text in self._expression_history]
         m.addSeparator()
         a_clr=m.addAction("清空历史")
         act=m.exec_(self._hist_btn.mapToGlobal(self._hist_btn.rect().bottomLeft()))
         if act is None: return
         if act==a_clr:
             self._history=[]; self._toast("历史已清空","success")
-        else:
+        elif act in acts:
             self._load_value(self._history[acts.index(act)]["v"])
             self._toast(f"已载入 0x{self._value:X}","success")
+        elif act in expr_actions:
+            self._load_expression(self._expression_history[expr_actions.index(act)])
 
     def _history_entry_label(self,entry):
         v=entry["v"]; src=entry.get("src","")
@@ -1070,8 +1083,8 @@ class BitForge(QMainWindow):
         elif act==a_rol: self._apply_tool_value(rotate_left(self._value,self._bit_width,1),"循环左移 1 位")
         elif act==a_ror: self._apply_tool_value(rotate_right(self._value,self._bit_width,1),"循环右移 1 位")
         elif act==a_swap: self._apply_tool_value(byte_swap(self._value,self._bit_width),"字节交换")
-        elif act==a_extract: self._extract_field()
-        elif act==a_write: self._write_field()
+        elif act==a_extract: self._field_editor("extract")
+        elif act==a_write: self._field_editor("write")
         elif act==a_pad: self._set_padding(not self._pad_display)
         elif act==a_decgrp: self._set_dec_grouping(not self._dec_grouping)
         elif act==a_native: self._set_byte_order("native")
@@ -1134,34 +1147,63 @@ class BitForge(QMainWindow):
         self._toast(f"{label} · {self._bit_width}b","success")
         dlog("tool", label, "->", hex(self._value), "bits", self._bit_width)
 
-    def _field_range(self):
-        recent_start,recent_width=self._field_recent
-        start,ok=QInputDialog.getInt(self,"位域起始位","起始位（LSB = 0）：",min(recent_start,self._bit_width-1),0,self._bit_width-1)
-        if not ok: return None
-        width,ok=QInputDialog.getInt(self,"位域长度","长度：",min(recent_width,self._bit_width-start),1,self._bit_width-start)
-        if not ok: return None
+    def _field_editor(self,mode="extract"):
+        """位域编辑对话框: 起始位/宽度/写入值一屏完成, 实时预览当前位域值。"""
+        d=QDialog(self); d.setWindowTitle("位域编辑")
+        d.setStyleSheet(f"QDialog{{background:{C['dsp_bg']};}}")
+        d.setFixedWidth(330)
+        form=QFormLayout(d); form.setContentsMargins(20,16,20,16); form.setSpacing(SP["m"])
+        start=QSpinBox(); start.setRange(0,self._bit_width-1)
+        start.setValue(min(self._field_recent[0],self._bit_width-1))
+        width=QSpinBox(); width.setRange(1,self._bit_width)
+        width.setValue(min(self._field_recent[1],self._bit_width))
+        mode_box=QComboBox(); mode_box.addItems(["提取位域","写入位域"])
+        mode_box.setCurrentText("写入位域" if mode=="write" else "提取位域")
+        value_edit=QLineEdit(); value_edit.setPlaceholderText("0x… · 写入位域时使用")
+        preview=QLabel(); preview.setStyleSheet(f"font-family:Consolas;color:{C['aux_fg']};")
+        def sync_preview():
+            width.setRange(1,self._bit_width-start.value())
+            width.setValue(min(width.value(),self._bit_width-start.value()))
+            try:
+                v=extract_field(self._value,self._bit_width,start.value(),width.value())
+                preview.setText(f"当前值 bit {start.value()+width.value()-1}:{start.value()} = 0x{v:X} · {v}")
+            except ValueError:
+                preview.setText("位域范围无效")
+        start.valueChanged.connect(sync_preview)
+        width.valueChanged.connect(sync_preview)
+        mode_box.currentTextChanged.connect(lambda _: sync_preview())
+        sync_preview()
+        buttons=QHBoxLayout()
+        ok=QPushButton("应用"); ok.setFixedHeight(30); ok.clicked.connect(d.accept)
+        cancel=QPushButton("取消"); cancel.setFixedHeight(30); cancel.clicked.connect(d.reject)
+        buttons.addStretch(1); buttons.addWidget(cancel); buttons.addWidget(ok)
+        form.addRow("起始位 (LSB=0)",start); form.addRow("宽度",width)
+        form.addRow("操作",mode_box); form.addRow("写入值",value_edit)
+        form.addRow(preview); form.addRow(buttons)
+        if not d.exec_(): return
+        s,wd=start.value(),width.value()
+        self._apply_field(s,wd,"write" if mode_box.currentText()=="写入位域" else "extract",value_edit.text())
+
+    def _apply_field(self,start,width,mode,value_text=None):
+        """提取/写入位域并记入历史; 返回是否应用成功 (对话框与测试共用的入口)。"""
+        if mode=="write":
+            try: fv=parse_number(value_text or "")
+            except ValueError:
+                self._toast("位域值格式无效")
+                dlog("field write parse failed:", value_text)
+                return False
+            self._apply_tool_value(write_field(self._value,self._bit_width,start,width,fv),
+                                   f"写入 bit {start}:{start+width-1}")
+        else:
+            try: v=extract_field(self._value,self._bit_width,start,width)
+            except ValueError:
+                self._toast("位域范围无效")
+                dlog("field range invalid:", start, width)
+                return False
+            self._apply_tool_value(v,f"提取 bit {start}:{start+width-1}")
         self._field_recent=(start,width)
-        dlog("field range", start, width)
-        return (start,width)
-
-    def _extract_field(self):
-        field=self._field_range()
-        if field is None: return
-        start,width=field
-        self._apply_tool_value(extract_field(self._value,self._bit_width,start,width),f"提取 bit {start}:{start+width-1}")
-
-    def _write_field(self):
-        field=self._field_range()
-        if field is None: return
-        text,ok=QInputDialog.getText(self,"写入位域","值（支持 0x / 0b / 0o）：")
-        if not ok: return
-        try: value=parse_number(text)
-        except ValueError:
-            self._toast("位域值格式无效")
-            dlog("field write parse failed:", text)
-            return
-        start,width=field
-        self._apply_tool_value(write_field(self._value,self._bit_width,start,width,value),f"写入 bit {start}:{start+width-1}")
+        dlog("field applied", mode, start, width)
+        return True
 
     def _set_active_op(self,op):
         for name,btn in self._op_btns.items():

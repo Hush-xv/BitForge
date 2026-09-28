@@ -1068,6 +1068,25 @@ check("DEC grouping toggles off", w._display.text() == "1234567", w._display.tex
 check("dec_group helper handles sign, short and non-digit text",
       dec_group("-1234567") == "-1,234,567" and dec_group("12") == "12" and dec_group("0x1F") == "0x1F")
 
+# ======== 39. 表达式历史回填 / 位域编辑 ========
+print("=== 39. Expression refill / field editor ===")
+
+w._expression_history=["0x10 * 2","1+1"]
+w._load_expression("1+1")
+check("expression refill sets input", w._expression_input.text()=="1+1", w._expression_input.text())
+
+w._clear_all(); w._rad(16); w._set_bit_width(8)
+w._value=0xD6; w._entry="D6"; w._refresh_display()
+check("field extract applies", w._apply_field(1,3,"extract") and w._value==0x3
+      and w._history[0]["src"]=="提取 bit 1:3", hex(w._value))
+check("field recent remembered", w._field_recent==(1,3), str(w._field_recent))
+w._value=0xD0; w._entry="D0"; w._refresh_display()
+check("field write applies", w._apply_field(1,3,"write","0x5") and w._value==0xDA, hex(w._value))
+check("field write rejects invalid value", not w._apply_field(1,3,"write","zzz") and w._value==0xDA,
+      hex(w._value))
+check("field write accepts h suffix", w._apply_field(0,4,"write","Fh") and w._value==0xDF, hex(w._value))
+check("field editor entry points exist", hasattr(w,"_field_editor") and hasattr(w,"_apply_field"))
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
