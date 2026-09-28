@@ -148,6 +148,7 @@ class CalculatorState:
         if self.new_entry:
             self.new_entry = False
         self.entry = candidate; self.value = value
+        self.sync_autowidth()
         return None
 
     def clear_all(self, record_undo=True):
@@ -166,6 +167,7 @@ class CalculatorState:
         except ValueError:
             # 有符号负数退格到 "-" 时无法解析, 归零避免卡键
             self.entry = "0"; self.value = 0; self.new_entry = True
+        self.sync_autowidth()
 
     def apply_operator(self, op):
         if self.error: self.clear_all(); return
@@ -176,10 +178,13 @@ class CalculatorState:
                 bits = self.pending.get("bits", self.bit_width)   # 与随后的 = 使用同一位宽
                 self.pending["lhs"] = clamp(~self.pending["lhs"], bits)
                 self.value = self.pending["lhs"]
+                self.sync_autowidth()
                 return
             bits = self.bit_width if self.locked else 64
             self.value = clamp(~self.value, bits); self.entry = self.format_entry(self.value)
-            self.new_entry = True; self.pending = None; return
+            self.new_entry = True; self.pending = None
+            self.sync_autowidth()
+            return
         # 尚未输入第二个操作数 → 替换运算符, 不提前计算
         if self.pending is not None and self.new_entry:
             self.pending = {"op": op, "lhs": self.pending["lhs"], "bits": self.bit_width,
@@ -238,6 +243,7 @@ class CalculatorState:
     def flip_signed(self):
         self.record_undo()
         self.signed = not self.signed
+        self.sync_autowidth()
 
     def radix_switch(self, r) -> bool:
         if self.radix == r or self.error: return False
