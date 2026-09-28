@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QVBoxLayout, QWidget,
 )
 
-from .core import (BIT_MASKS, OP_SYMBOLS, RADIX_DIGITS, byte_swap, clamp, dlog,
+from .core import (BIT_MASKS, RADIX_DIGITS, byte_swap, clamp, dlog,
                    evaluate_expression, extract_field, parse_number, rotate_left,
                    rotate_right, to_signed, write_field)
 from .render import (aux_text, compute_display_model, display_groups, font_size_for,
