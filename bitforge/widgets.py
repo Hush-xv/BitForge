@@ -1,7 +1,7 @@
 """BitForge 自绘控件: BFButton / DisplayText / BitGlow / 应用图标。"""
 from PyQt5.QtCore import Qt, QRectF, QTimer, QVariantAnimation, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPixmap
-from PyQt5.QtWidgets import QLabel, QSizePolicy, QToolTip, QWidget
+from PyQt5.QtWidgets import QGraphicsDropShadowEffect, QLabel, QSizePolicy, QToolTip, QWidget
 from siui.components.button import SiPushButtonRefactor
 
 from .core import clamp
@@ -19,6 +19,15 @@ def make_app_icon():
     painter.drawText(QRectF(3,0,58,60),Qt.AlignCenter,"B")
     painter.end()
     return QIcon(pixmap)
+
+
+def make_shadow(widget, blur, dy, alpha):
+    """统一投影: 半径/位移/透明度由调用处给值, 颜色固定同一冷灰蓝。"""
+    effect=QGraphicsDropShadowEffect(widget)
+    effect.setBlurRadius(blur); effect.setOffset(0,dy)
+    effect.setColor(QColor(80,90,120,alpha))
+    widget.setGraphicsEffect(effect)
+    return effect
 
 # =====================================================================
 #  按钮

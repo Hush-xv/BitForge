@@ -5,7 +5,7 @@ from PyQt5.QtCore import (Qt, QTimer, QEasingCurve, QVariantAnimation, QEvent,
                           QPoint, QByteArray, QSettings)
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QKeyEvent
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
+    QApplication, QDialog, QFrame, QGraphicsOpacityEffect,
     QHBoxLayout, QInputDialog, QLineEdit, QMainWindow, QLabel, QMenu, QPushButton,
     QSizePolicy, QVBoxLayout, QWidget,
 )
@@ -16,12 +16,12 @@ from .core import (BIT_MASKS, RADIX_DIGITS, byte_swap, clamp, dlog,
 from .render import (aux_text, compute_display_model, display_groups, font_size_for,
                      group_display, make_display_font)
 from .state import CalculatorState, compute
-from .theme import C, DARK_C, LIGHT_C
-from .widgets import BFButton, BitGlow, DisplayText, make_app_icon
+from .theme import RD, SP, C, DARK_C, LIGHT_C
+from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.11.0"
+    APP = "BitForge"; VER = "v1.12.0"
 
     def __init__(self):
         super().__init__()
@@ -137,7 +137,7 @@ class BitForge(QMainWindow):
             "error":(C["dsp_neg"],"#4A1019"),
         }
         bg,fg=colors.get(kind,colors["info"])
-        self._toast_lb.setStyleSheet(f"background:{bg};color:{fg};border-radius:14px;padding:5px 16px 6px 16px;font-size:12px;font-weight:700;")
+        self._toast_lb.setStyleSheet(f"background:{bg};color:{fg};border-radius:{RD['l']}px;padding:5px 16px 6px 16px;font-size:12px;font-weight:700;")
         self._toast_lb.setText(msg)
         self._toast_lb.adjustSize()
         d=self._toolbar.mapTo(self.centralWidget(),QPoint(0,0))
@@ -164,11 +164,11 @@ class BitForge(QMainWindow):
 
     def _menu(self):
         m=QMenu(self)
-        m.setStyleSheet(f"QMenu{{background:{C['dsp_bg']};color:{C['title']};border:1px solid {C['tb_bdr']};border-radius:10px;padding:6px;}}"
-                        f"QMenu::item{{padding:7px 26px 7px 12px;border-radius:6px;}}"
+        m.setStyleSheet(f"QMenu{{background:{C['dsp_bg']};color:{C['title']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;padding:{SP['xs']}px;}}"
+                        f"QMenu::item{{padding:7px 26px 7px 12px;border-radius:{SP['xs']}px;}}"
                         f"QMenu::item:selected{{background:{C['aux_bg']};color:{C['rad_on']};}}"
                         f"QMenu::item:disabled{{color:{C['sub']};font-weight:600;}}"
-                        f"QMenu::separator{{height:1px;background:{C['tb_bdr']};margin:5px 8px;}}")
+                        f"QMenu::separator{{height:1px;background:{C['tb_bdr']};margin:5px {SP['m']}px;}}")
         return m
 
     # ===== 窗口样式 =====
@@ -229,22 +229,25 @@ class BitForge(QMainWindow):
         self._root_layout=v
         self._compact_layout=None
 
-        # 进制栏
+        # 进制栏: 语义三分组 [进制] | [符号/锁/位宽胶囊] ···弹性··· [历史/工具/置顶]
         tb=QFrame(); tb.setObjectName("calcToolbar")
         self._toolbar=tb
-        tb.setStyleSheet(f"QFrame#calcToolbar{{background:{C['tb_bg']};border:1px solid {C['tb_bdr']};border-radius:12px;}}")
-        tbl=QHBoxLayout(tb); tbl.setContentsMargins(7,4,7,4); tbl.setSpacing(4)
+        tb.setStyleSheet(f"QFrame#calcToolbar{{background:{C['tb_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}")
+        tbl=QHBoxLayout(tb); tbl.setContentsMargins(7,4,7,4); tbl.setSpacing(SP["xs"])
         self._radix_buttons={}; rf=QFrame()
-        rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:10px;border:1px solid {C['tb_bdr']};}}")
+        rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:{RD['m']}px;border:1px solid {C['tb_bdr']};}}")
         rl=QHBoxLayout(rf); rl.setContentsMargins(3,3,3,3); rl.setSpacing(0)
-        for lb,r in [("HEX",16),("DEC",10),("OCT",8),("BIN",2)]:
+        for idx,(lb,r) in enumerate([("HEX",16),("DEC",10),("OCT",8),("BIN",2)]):
             b=QPushButton(lb); b.setCheckable(True); b.setChecked(r==self._radix)
             b.setFont(self._si_font(10)); b.setFixedHeight(24); b.setMinimumWidth(44)
-            b.setStyleSheet(self._radix_btn_style(r==self._radix))
+            b.setStyleSheet(self._radix_btn_style(r==self._radix, first=(idx==0), last=(idx==3)))
             b.clicked.connect(lambda _,rr=r: self._rad(rr))
             rl.addWidget(b); self._radix_buttons[r]=b
-        tbl.addWidget(rf,1)
-        tbl.addSpacing(8)
+        tbl.addWidget(rf,0)
+        make_shadow(rf,10,2,35)
+        tbl.addSpacing(SP["s"])
+        tbl.addWidget(self._vsep())
+        tbl.addSpacing(SP["s"])
         self._sign_btn=QPushButton("\u00b1")
         self._sign_btn.setFont(self._si_font(14))
         self._sign_btn.setFixedSize(34,26)
@@ -260,14 +263,35 @@ class BitForge(QMainWindow):
         self._lock_btn.setStyleSheet(self._lock_btn_style(False))
         self._lock_btn.clicked.connect(self._toggle_lock)
         tbl.addWidget(self._lock_btn)
-        self._pin_btn=QPushButton("\U0001f4cc")
-        self._pin_btn.setFont(self._si_font(10))
-        self._pin_btn.setFixedSize(30,26)
-        self._pin_btn.setCheckable(True)
-        self._pin_btn.setToolTip("窗口置顶")
-        self._pin_btn.setStyleSheet(self._lock_btn_style(False))
-        self._pin_btn.clicked.connect(self._toggle_pin)
-        tbl.addWidget(self._pin_btn)
+        # 位宽胶囊: [+ − 8b] 一个视觉单元, 点位宽标签弹选择菜单
+        bw=QFrame(); bw.setObjectName("bwCapsule")
+        bw.setStyleSheet(f"QFrame#bwCapsule{{background:{C['tb_bg']};border-radius:{RD['m']}px;border:1px solid {C['tb_bdr']};}}")
+        bl=QHBoxLayout(bw); bl.setContentsMargins(3,3,3,3); bl.setSpacing(0)
+        self._bw_up=QPushButton("+")
+        self._bw_up.setFont(self._si_font(12))
+        self._bw_up.setFixedSize(24,26)
+        self._bw_up.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;}}"
+                                  f"QPushButton:hover{{color:{C['title']};}}")
+        self._bw_up.clicked.connect(self._step_bw_up)
+        bl.addWidget(self._bw_up)
+        self._bw_dn=QPushButton("\u2212")
+        self._bw_dn.setFont(self._si_font(12))
+        self._bw_dn.setFixedSize(24,26)
+        self._bw_dn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;}}"
+                                  f"QPushButton:hover{{color:{C['title']};}}")
+        self._bw_dn.clicked.connect(self._step_bw_dn)
+        bl.addWidget(self._bw_dn)
+        self._bit_width_lb=QLabel("8b")
+        self._bit_width_lb.setFont(self._si_font(9))
+        self._bit_width_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
+        self._bit_width_lb.setAlignment(Qt.AlignCenter)
+        self._bit_width_lb.setCursor(Qt.PointingHandCursor)
+        self._bit_width_lb.setToolTip("点击选择位宽；+/- 微调并锁定")
+        self._bit_width_lb.mouseReleaseEvent = lambda e: self._show_bit_width_menu() if e.button()==Qt.LeftButton else None
+        bl.addWidget(self._bit_width_lb)
+        tbl.addWidget(bw)
+        make_shadow(bw,10,2,35)
+        tbl.addStretch(1)
         self._hist_btn=QPushButton("\u23f1")
         self._hist_btn.setFont(self._si_font(10))
         self._hist_btn.setFixedSize(30,26)
@@ -281,48 +305,28 @@ class BitForge(QMainWindow):
         self._tools_btn.setStyleSheet(self._lock_btn_style(False))
         self._tools_btn.clicked.connect(self._show_tools)
         tbl.addWidget(self._tools_btn)
-        tbl.addSpacing(7)
-        tbl.addWidget(self._vsep())
-        tbl.addSpacing(7)
-        self._bw_up=QPushButton("+")
-        self._bw_up.setFont(self._si_font(12))
-        self._bw_up.setFixedSize(24,26)
-        self._bw_up.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;}}QPushButton:hover{{color:{C['title']};}}")
-        self._bw_up.clicked.connect(self._step_bw_up)
-        tbl.addWidget(self._bw_up)
-        self._bw_dn=QPushButton("\u2212")
-        self._bw_dn.setFont(self._si_font(12))
-        self._bw_dn.setFixedSize(24,26)
-        self._bw_dn.setStyleSheet(f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;border-radius:5px;}}QPushButton:hover{{color:{C['title']};}}")
-        self._bw_dn.clicked.connect(self._step_bw_dn)
-        tbl.addWidget(self._bw_dn)
-        self._bit_width_lb=QLabel("8b")
-        self._bit_width_lb.setFont(self._si_font(9))
-        self._bit_width_lb.setStyleSheet(f"color:{C['sub']};padding:0 6px 0 2px;")
-        self._bit_width_lb.setAlignment(Qt.AlignCenter)
-        self._bit_width_lb.setCursor(Qt.PointingHandCursor)
-        self._bit_width_lb.setToolTip("点击选择位宽；+/- 微调并锁定")
-        self._bit_width_lb.mouseReleaseEvent = lambda e: self._show_bit_width_menu() if e.button()==Qt.LeftButton else None
-        tbl.addWidget(self._bit_width_lb)
+        self._pin_btn=QPushButton("\U0001f4cc")
+        self._pin_btn.setFont(self._si_font(10))
+        self._pin_btn.setFixedSize(30,26)
+        self._pin_btn.setCheckable(True)
+        self._pin_btn.setToolTip("窗口置顶")
+        self._pin_btn.setStyleSheet(self._lock_btn_style(False))
+        self._pin_btn.clicked.connect(self._toggle_pin)
+        tbl.addWidget(self._pin_btn)
         v.addWidget(tb)
 
         # 显示
         self._display_card=QFrame(); self._display_card.setObjectName("displayCard")
-        self._display_card.setStyleSheet(f"QFrame#displayCard{{background:{C['dsp_bg']};border:1px solid {C['tb_bdr']};border-radius:18px;}}")
+        self._display_card.setStyleSheet(f"QFrame#displayCard{{background:{C['dsp_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['xl']}px;}}")
         display_layout=QVBoxLayout(self._display_card); display_layout.setContentsMargins(0,0,0,0)
         self._display=DisplayText(self); self._display.setFixedHeight(84)
-        self._display.setBackgroundColor(C["dsp_bg"]); self._display.setBorderRadius(18)
+        self._display.setBackgroundColor(C["dsp_bg"]); self._display.setBorderRadius(RD['xl'])
         self._display.setAlignment(Qt.AlignRight|Qt.AlignBottom)
         self._display.setFont(self._display_font(34)); self._display.setTextColor(C["dsp_fg"])
         self._display.setText("0"); self._display.setContentsMargins(18,12,18,10)
         self._set_display_color(C["dsp_fg"])
         display_layout.addWidget(self._display); v.addWidget(self._display_card)
-        dsp_shadow=QGraphicsDropShadowEffect(self)
-        dsp_shadow.setBlurRadius(18); dsp_shadow.setOffset(0,3); dsp_shadow.setColor(QColor(80,90,120,55))
-        self._display_card.setGraphicsEffect(dsp_shadow)
-        rf_shadow=QGraphicsDropShadowEffect(self)
-        rf_shadow.setBlurRadius(10); rf_shadow.setOffset(0,2); rf_shadow.setColor(QColor(80,90,120,35))
-        rf.setGraphicsEffect(rf_shadow)
+        make_shadow(self._display_card,18,3,55)
         # 显示区左下角: 当前 pending 表达式 (如 "123 +")
         self._expr_label=QLabel(self._display)
         self._expr_label.setStyleSheet(f"color:{C['sub']};font-size:13px;font-weight:600;")
@@ -341,7 +345,7 @@ class BitForge(QMainWindow):
 
         # 独立表达式栏：不改变传统按键计算状态
         expr_bar=QFrame(); expr_bar.setObjectName("expressionBar"); self._expr_bar=expr_bar
-        expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:10px;}}")
+        expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}")
         expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(10,4,6,4); expr_l.setSpacing(7)
         expr_tag=QLabel("EXPR"); expr_tag.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
         self._expression_input=QLineEdit(self)
@@ -403,8 +407,9 @@ class BitForge(QMainWindow):
             for nm in row_nm:
                 lb=QLabel(self)
                 lb.setTextFormat(Qt.RichText)
-                lb.setStyleSheet(f"QLabel{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:10px;padding:0 12px 0 12px;}}"
-                                 f"QLabel:hover{{background:{C['dsp_bg']};border-color:{C['rad_on']};}}")
+                # 降噪: 常态无边框 (透明占位保持几何), 悬停才点亮边框
+                lb.setStyleSheet(f"QLabel{{background:{C['aux_bg']};border:1px solid transparent;border-radius:{RD['m']}px;padding:0 {SP['l']}px 0 {SP['l']}px;}}"
+                                 f"QLabel:hover{{background:{C['dsp_bg']};border:1px solid {C['rad_on']};}}")
                 fsize=10 if nm=="BIN" else 12
                 lb.setFont(SiFont.getFont(size=fsize))
                 lb.setMinimumHeight(34); lb.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
@@ -463,7 +468,7 @@ class BitForge(QMainWindow):
 
         # 浮动 toast 胶囊 (显示区右上角, 自动消失)
         self._toast_lb=QLabel(cw)
-        self._toast_lb.setStyleSheet(f"background:{C['toast_bg']};color:{C['toast_fg']};border-radius:14px;padding:5px 16px 6px 16px;font-size:12px;font-weight:600;")
+        self._toast_lb.setStyleSheet(f"background:{C['toast_bg']};color:{C['toast_fg']};border-radius:{RD['l']}px;padding:5px 16px 6px 16px;font-size:12px;font-weight:600;")
         self._toast_lb.setAlignment(Qt.AlignCenter)
         self._toast_lb.hide()
         # 淡入淡出
@@ -733,13 +738,17 @@ class BitForge(QMainWindow):
             return SiFont.getFont(size=s)
         except: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
-    def _radix_btn_style(self,on):
-        if on: return (f"QPushButton{{background:{C['rad_on']};color:{C['eq_fg']};border:none;"
-                       f"border-radius:7px;font-weight:600;}}"
+    def _radix_btn_style(self,on,first=False,last=False):
+        """连通式分段: 仅首末段保留外侧圆角, 中段直角相连。"""
+        tl="7px" if first else "0px"; br="7px" if last else "0px"
+        corners=(f"border-top-left-radius:{tl};border-bottom-left-radius:{tl};"
+                 f"border-top-right-radius:{br};border-bottom-right-radius:{br};")
+        if on: return (f"QPushButton{{background:{C['rad_on']};color:{C['eq_fg']};border:none;{corners}"
+                       f"font-weight:600;}}"
                        f"QPushButton:hover{{background:{C['rad_on']};}}"
                        f"QPushButton:focus{{border:1px solid {C['op_active']};}}")
-        return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;"
-                f"border-radius:7px;font-weight:600;}}"
+        return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;{corners}"
+                f"font-weight:600;}}"
                 f"QPushButton:hover{{color:{C['title']};}}"
                 f"QPushButton:focus{{border:1px solid {C['rad_on']};}}")
 
@@ -754,7 +763,9 @@ class BitForge(QMainWindow):
                 f"QPushButton:checked{{color:{C['rad_on']};}}")
 
     def _refresh_radix_buttons(self):
-        for r,b in self._radix_buttons.items(): b.setStyleSheet(self._radix_btn_style(r==self._radix))
+        positions=list(self._radix_buttons)
+        for i,(r,b) in enumerate(self._radix_buttons.items()):
+            b.setStyleSheet(self._radix_btn_style(r==self._radix, first=(i==0), last=(i==len(positions)-1)))
         valid=RADIX_DIGITS[self._radix]
         for ch,btn in self._digit_btns.items(): btn.set_dimmed(ch not in valid)
 
@@ -892,9 +903,9 @@ class BitForge(QMainWindow):
 
     def _flash_expr_bar(self,color):
         """表达式栏边框短暂着色: 绿=成功, 红=出错。"""
-        self._expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {color};border-radius:10px;}}")
+        self._expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {color};border-radius:{RD['m']}px;}}")
         QTimer.singleShot(900, lambda: self._expr_bar.setStyleSheet(
-            f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:10px;}}"))
+            f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}"))
 
     def _evaluate_expression(self):
         text=self._expression_input.text().strip()

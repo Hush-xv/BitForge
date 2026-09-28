@@ -1,3 +1,11 @@
+## v1.12.0 — UI & layout refresh
+
+- Introduced design tokens (`SP` spacing / `RD` radius scales in `theme.py`) and a shared shadow helper (`widgets.make_shadow`); toolbar, display card, expression bar, menus, toasts and aux rows now use the unified scales.
+- Reorganized the toolbar into three semantic groups — radix segmented control | sign / lock / bit-width capsule | history / tools / pin — joined by an elastic gap; the bit-width stepper (+ − 8b) is one bordered capsule.
+- Radix switch is now a true connected segmented control: only the first and last segments keep outer corners; the active segment fills.
+- Aux radix rows lost their permanent border (transparent placeholder keeps geometry) and light up their accent border on hover, lowering visual weight in favour of the bit map.
+- Normalized corner radii (display card 20, expression bar / menus 12, toast 16); all behavior, fixed slots (84 px display, 82 px bit map, 277 px keypad) and interaction flows unchanged; full UI suite passes without pin changes.
+
 ## v1.11.0 — Internal refactor (behavior unchanged)
 
 - Split the single-file app into the `bitforge/` package: `core` (pure math/expression parsing), `state` (calculator state machine), `render` (display model), `theme`, `widgets`, `main_window`, `app`; `bitforge.py` stays as the launch shim and `python bitforge.py` / `python -m bitforge` both work.
