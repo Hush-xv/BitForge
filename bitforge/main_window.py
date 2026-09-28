@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 from .core import (BIT_MASKS, OP_SYMBOLS, RADIX_DIGITS, byte_swap, clamp, dlog,
                    evaluate_expression, extract_field, parse_number, rotate_left,
                    rotate_right, to_signed, write_field)
+from .state import CalculatorState, compute
 from .theme import C, DARK_C, LIGHT_C
 from .widgets import BFButton, BitGlow, DisplayText, make_app_icon
 
@@ -27,8 +28,7 @@ class BitForge(QMainWindow):
         self.setWindowIcon(self._app_icon)
         self.setMinimumSize(540, 720); self.resize(560, 720)
         self.setFocusPolicy(Qt.StrongFocus)
-        self._value=0; self._entry="0"; self._radix=10; self._bit_width=8
-        self._new_entry=True; self._signed=False; self._locked=False; self._pending=None; self._error=False
+        self._state=CalculatorState()   # 计算状态唯一真相源 (bitforge/state.py)
         self._lock_style_state=None   # 上次刷新时的锁定状态 (样式 guard)
         self._aux_last={}             # 辅助行上次 HTML (setText guard)
         self._expr_last=""            # 表达式行上次文本
@@ -38,10 +38,6 @@ class BitForge(QMainWindow):
         self._persist=True            # 关闭时写 QSettings (测试可关闭)
         self._history=[]              # 最近结果 (最新在前, 上限 10)
         self._expression_history=[]   # 最近表达式（最新在前，上限 5）
-        self._last_op=None            # 连按 = 重复上次运算
-        self._undo_stack=[]           # 当前会话撤销栈；不写入设置，避免恢复旧计算值
-        self._redo_stack=[]
-        self._restoring_state=False
         self._settings=QSettings("BitForge","BitForge")
         self._restore_settings()
         self._apply_theme_colors()
@@ -67,6 +63,63 @@ class BitForge(QMainWindow):
             except Exception: pass
 
     HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Tab 切换进制  Ctrl+Z/Y  Ctrl+C/V  F1 帮助"
+
+    # ---- 状态委托: 数据真源在 self._state, 保留旧属性名使窗口代码与测试零改动 ----
+    @property
+    def _value(self): return self._state.value
+    @_value.setter
+    def _value(self,v): self._state.value=v
+
+    @property
+    def _entry(self): return self._state.entry
+    @_entry.setter
+    def _entry(self,v): self._state.entry=v
+
+    @property
+    def _radix(self): return self._state.radix
+    @_radix.setter
+    def _radix(self,v): self._state.radix=v
+
+    @property
+    def _bit_width(self): return self._state.bit_width
+    @_bit_width.setter
+    def _bit_width(self,v): self._state.bit_width=v
+
+    @property
+    def _new_entry(self): return self._state.new_entry
+    @_new_entry.setter
+    def _new_entry(self,v): self._state.new_entry=v
+
+    @property
+    def _signed(self): return self._state.signed
+    @_signed.setter
+    def _signed(self,v): self._state.signed=v
+
+    @property
+    def _locked(self): return self._state.locked
+    @_locked.setter
+    def _locked(self,v): self._state.locked=v
+
+    @property
+    def _pending(self): return self._state.pending
+    @_pending.setter
+    def _pending(self,v): self._state.pending=v
+
+    @property
+    def _last_op(self): return self._state.last_op
+    @_last_op.setter
+    def _last_op(self,v): self._state.last_op=v
+
+    @property
+    def _error(self): return self._state.error
+    @_error.setter
+    def _error(self,v): self._state.error=v
+
+    @property
+    def _undo_stack(self): return self._state._undo_stack
+
+    @property
+    def _redo_stack(self): return self._state._redo_stack
 
     def _ani_set_text(self,val):
         self._display.setText(f"{val:.0f}")
@@ -127,33 +180,13 @@ class BitForge(QMainWindow):
         self._display.setStyleSheet(f"background:transparent;color:{color};border:none;")
 
     # ===== 当前会话撤销 / 重做 =====
-    def _snapshot_state(self):
-        """Capture only calculator state; history and preferences are intentionally not undone."""
-        return {
-            "value":self._value, "entry":self._entry, "radix":self._radix,
-            "bit_width":self._bit_width, "locked":self._locked, "signed":self._signed,
-            "new_entry":self._new_entry, "error":self._error,
-            "pending":None if self._pending is None else self._pending.copy(),
-            "last_op":None if self._last_op is None else self._last_op.copy(),
-        }
-
     def _record_undo(self):
-        if self._restoring_state: return
-        snapshot=self._snapshot_state()
-        if self._undo_stack and self._undo_stack[-1]==snapshot: return
-        self._undo_stack.append(snapshot)
-        del self._undo_stack[:-50]
-        self._redo_stack.clear()
-        dlog("undo snapshot", "undo", len(self._undo_stack))
+        self._state.record_undo()
 
-    def _restore_calculator_state(self,state):
-        self._restoring_state=True
+    def _restore_calculator_state(self):
+        """撤销/重做后按当前状态同步控件 (数据恢复已在 state.undo/redo 内完成)。"""
+        self._state.restoring=True
         try:
-            self._value=state["value"]; self._entry=state["entry"]; self._radix=state["radix"]
-            self._bit_width=state["bit_width"]; self._locked=state["locked"]; self._signed=state["signed"]
-            self._new_entry=state["new_entry"]; self._error=state["error"]
-            self._pending=None if state["pending"] is None else state["pending"].copy()
-            self._last_op=None if state["last_op"] is None else state["last_op"].copy()
             self._value_anim.stop(); self._ani_running=False; self._ani_last=""
             self._lock_style_state=None; self._aux_last={}; self._expr_last=""
             self._sign_btn.setChecked(self._signed)
@@ -167,25 +200,21 @@ class BitForge(QMainWindow):
                 self._set_active_op(self._pending["op"] if self._pending else None)
                 self._refresh_display()
         finally:
-            self._restoring_state=False
+            self._state.restoring=False
 
     def _undo(self):
-        if not self._undo_stack:
+        if not self._state.undo():
             self._toast("没有可撤销的操作","warning")
             return
-        self._redo_stack.append(self._snapshot_state())
-        state=self._undo_stack.pop()
-        self._restore_calculator_state(state)
+        self._restore_calculator_state()
         self._toast("已撤销")
         dlog("undo applied", "undo", len(self._undo_stack), "redo", len(self._redo_stack))
 
     def _redo(self):
-        if not self._redo_stack:
+        if not self._state.redo():
             self._toast("没有可重做的操作","warning")
             return
-        self._undo_stack.append(self._snapshot_state())
-        state=self._redo_stack.pop()
-        self._restore_calculator_state(state)
+        self._restore_calculator_state()
         self._toast("已重做")
         dlog("redo applied", "undo", len(self._undo_stack), "redo", len(self._redo_stack))
 
@@ -731,8 +760,7 @@ class BitForge(QMainWindow):
         for ch,btn in self._digit_btns.items(): btn.set_dimmed(ch not in valid)
 
     def _toggle_sign(self):
-        self._record_undo()
-        self._signed=not self._signed
+        self._state.flip_signed()
         self._sign_btn.setChecked(self._signed)
         self._sign_btn.setStyleSheet(self._sign_style(self._signed))
         self._refresh_display()
@@ -765,14 +793,9 @@ class BitForge(QMainWindow):
             self._set_bit_width(next(b for b,a in acts.items() if a==act))
 
     def _set_bit_width(self,b):
-        if b not in BIT_MASKS:
-            dlog("bit width rejected:", b)
-            return
-        self._record_undo()
-        self._bit_width=b; self._locked=True
+        if not self._state.set_bit_width(b): return
         self._lock_btn.setChecked(True); self._lock_btn.setToolTip("位宽已锁定")
         self._value_anim.stop(); self._ani_running=False; self._ani_last=""
-        self._entry=self._format_entry(self._value)
         self._refresh_display(); self._toast(f"位宽锁定为 {b}b")
         dlog("bit width set:", b)
 
@@ -842,13 +865,17 @@ class BitForge(QMainWindow):
     def _copy_radix(self,name):
         self._copy_text(self._aux_value(name),name)
 
-    def _set_error(self,message):
-        self._error=True; self._pending=None; self._last_op=None
+    def _show_error_ui(self,message):
+        """错误态 UI 呈现 (数据字段已由 state.enter_error 清理)。"""
         self._value_anim.stop(); self._ani_running=False
         self._set_active_op(None)
         self._display.setText("Error"); self._set_display_color(C["dsp_neg"])
         self._toast(message,"error")
         dlog("calculation error:", message)
+
+    def _set_error(self,message):
+        self._state.enter_error()
+        self._show_error_ui(message)
 
     def _paste(self):
         text=QApplication.clipboard().text().strip()
@@ -914,12 +941,11 @@ class BitForge(QMainWindow):
             self._toast("表达式历史已清除","success")
 
     def _load_value(self,v,record_undo=True):
-        if record_undo: self._record_undo()
-        if self._error: self._clear_all(record_undo=False)
-        self._value=self._fit_value(v)
-        self._entry=self._format_entry(self._value)
-        self._new_entry=False
-        self._pending=None
+        cleared=self._state.load_value(v,record_undo=record_undo)
+        if cleared:
+            self._lock_btn.setChecked(False)
+            self._value_anim.stop(); self._ani_running=False; self._ani_last=""
+            self._bit_indicator.clear_selection()
         self._set_active_op(None)
         self._refresh_display()
         dlog("load value", v, "->", hex(self._value), "bits", self._bit_width)
@@ -1119,186 +1145,58 @@ class BitForge(QMainWindow):
         self._rad(order[(order.index(self._radix)+step)%4])
 
     def _rad(self,r):
-        if self._radix==r or self._error: return
-        self._record_undo()
-        self._radix=r; self._new_entry=False; self._entry=self._format_entry(self._value); self._refresh_radix_buttons(); self._refresh_display()
+        if self._state.radix_switch(r):
+            self._refresh_radix_buttons()
+            self._refresh_display()
 
     def _input_digit(self,d):
         if self._error: self._clear_all()
-        if d not in RADIX_DIGITS.get(self._radix,""):
-            dlog("digit rejected:", d, "radix:", self._radix); return
-        mx={2:self._bit_width if self._locked else 64,8:22,10:20,16:16}[self._radix]
-        if self._new_entry:
-            candidate=d
-        elif self._entry=="0":
-            candidate=d   # 前导零不叠加
-        else:
-            candidate=self._entry+d
-            if len(candidate)>mx:
-                self._toast("当前位宽已达输入上限")
-                dlog("input max length:", self._entry, "radix:", self._radix); return
-        try: value=int(candidate,self._radix)
-        except ValueError:
-            dlog("int parse failed:", candidate, "radix:", self._radix); return
-        bits=self._bit_width if self._locked else 64
-        if value>BIT_MASKS[bits]:
-            self._toast(f"超出当前 {bits} 位范围")
-            dlog("input overflow:", candidate, "bits:", bits); return
-        self._record_undo()
-        if self._new_entry:
-            self._new_entry=False; self._set_active_op(None)
-        self._entry=candidate; self._value=value
+        msg=self._state.input_digit(d)
+        if msg: self._toast(msg); return
+        self._set_active_op(self._state.active_op)
         self._refresh_display()
 
     def _clear_all(self,record_undo=True):
-        if record_undo: self._record_undo()
-        self._value=0; self._entry="0"; self._pending=None; self._new_entry=True; self._bit_width=8; self._locked=False; self._lock_btn.setChecked(False); self._error=False; self._value_anim.stop(); self._ani_running=False; self._ani_last=""; self._last_op=None
+        self._state.clear_all(record_undo=record_undo)
+        self._lock_btn.setChecked(False)
+        self._value_anim.stop(); self._ani_running=False; self._ani_last=""
         self._set_active_op(None)
         self._bit_indicator.clear_selection()
         self._refresh_display()
 
     def _backspace(self):
         if self._error: self._clear_all(); return
-        if self._new_entry: return
-        self._record_undo()
-        if len(self._entry)<=1: self._entry="0"; self._new_entry=True
-        else: self._entry=self._entry[:-1]
-        try: v=int(self._entry,self._radix) if self._entry else 0; self._value=clamp(v,64)
-        except ValueError:
-            # 有符号负数退格到 "-" 时无法解析, 归零避免卡键
-            self._entry="0"; self._value=0; self._new_entry=True
-            self._refresh_display(); return
+        self._state.backspace()
         self._refresh_display()
 
     def _apply_operator(self,op):
         if self._error: self._clear_all(); return
-        self._record_undo()
-        if op=="not":
-            # 待定运算存在时 NOT 作用于等待中的操作数, 保留待定关系
-            if self._pending is not None and self._new_entry:
-                bits=self._pending.get("bits",self._bit_width)   # 与随后的 = 使用同一位宽
-                self._pending["lhs"]=clamp(~self._pending["lhs"],bits)
-                self._value=self._pending["lhs"]
-                self._refresh_display(); return
-            bits=self._bit_width if self._locked else 64
-            self._value=clamp(~self._value,bits); self._entry=self._format_entry(self._value); self._new_entry=True; self._pending=None; self._refresh_display(); return
-        # 尚未输入第二个操作数 → 替换运算符, 不提前计算
-        if self._pending is not None and self._new_entry:
-            self._pending={"op":op,"lhs":self._pending["lhs"],"bits":self._bit_width,
-                           "locked":self._locked,"signed":self._signed}
-            self._set_active_op(op)
-            self._refresh_display(); return
-        if self._pending is not None: self._evaluate()
-        self._pending={"op":op,"lhs":self._value,"bits":self._bit_width,
-                       "locked":self._locked,"signed":self._signed}; self._new_entry=True
-        self._set_active_op(op)
+        self._state.apply_operator(op)
+        self._set_active_op(self._state.active_op)
         self._refresh_display()
 
     def _equals(self):
         if self._error: return
-        if self._pending is not None or self._last_op is not None: self._record_undo()
-        if self._pending is not None:
-            self._last_op={"op":self._pending["op"],"rhs":self._value,
-                           "bits":self._pending.get("bits",self._bit_width),"locked":self._pending.get("locked",self._locked),
-                           "signed":self._pending.get("signed",self._signed)}
-            sym=OP_SYMBOLS.get(self._pending["op"],self._pending["op"])
-            src=f"{self._pending['lhs']} {sym} {self._value}"
-            self._evaluate()
-            if not self._error: self._remember(self._value,src)
-            self._new_entry=True
-            self._set_active_op(None)
-            self._refresh_display(); return
-        if self._last_op is not None:
-            # 连按 =: 重复上次运算 (结果 op rhs)
-            try:
-                bits=self._last_op.get("bits",self._bit_width)
-                r=self._compute(self._last_op["op"],self._value,self._last_op["rhs"],bits,
-                                self._last_op.get("signed",self._signed))
-            except (ZeroDivisionError,ValueError):
-                self._set_error("除数不能为 0")
-                return
-            if self._last_op.get("locked",False): self._bit_width=bits; self._locked=True; r=clamp(r,bits)
-            self._value=self._fit_value(r); self._entry=self._format_entry(self._value)
-            sym=OP_SYMBOLS.get(self._last_op["op"],self._last_op["op"])
-            self._remember(self._value,f"重复 {self._value} {sym} {self._last_op['rhs']}")
-            self._new_entry=True
-            self._set_active_op(None)
-            self._refresh_display()
+        err,mem=self._state.equals()
+        if err:
+            self._show_error_ui(err); return
+        if mem: self._remember(*mem)
+        self._set_active_op(self._state.active_op)
+        self._refresh_display()
 
-    def _evaluate(self):
-        if self._pending is None: return
-        op,lhs,rhs=self._pending["op"],self._pending["lhs"],self._value
-        bits=self._pending.get("bits",self._bit_width)
-        try: r=self._compute(op,lhs,rhs,bits,self._pending.get("signed",self._signed))
-        except (ZeroDivisionError,ValueError):
-            self._set_error("除数不能为 0" if op in ("div","mod") and rhs==0 else "计算失败")
-            return
-        if self._pending.get("locked",False):
-            self._bit_width=bits; self._locked=True; r=clamp(r,bits)
-        elif op in ("rol","ror"):
-            self._bit_width=bits; self._locked=True
-        self._value=self._fit_value(r); self._entry=self._format_entry(self._value); self._pending=None
-
-    @staticmethod
-    def _compute(op,l,r,b=64,signed=False):
-        if op=="add": return l+r
-        if op=="sub": return l-r
-        if op=="mul": return l*r
-        if op=="div":
-            if r==0: raise ZeroDivisionError()
-            if not signed: return l//r
-            left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
-            if right==0: raise ZeroDivisionError()
-            dlog("signed compute", op, left, right, "bits", b)
-            return (abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
-        if op=="mod":
-            if r==0: raise ZeroDivisionError()
-            if not signed: return l%r
-            left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
-            if right==0: raise ZeroDivisionError()
-            quotient=(abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
-            dlog("signed compute", op, left, right, "bits", b)
-            return left-quotient*right
-        if op=="and": return l&r
-        if op=="or":  return l|r
-        if op=="xor": return l^r
-        if op=="lsh":
-            if r<0: raise ValueError("移位数不能为负")
-            return 0 if r>=64 else l<<r   # 自动位宽允许结果扩展到 64 bit
-        if op=="rsh":
-            if r<0: raise ValueError("移位数不能为负")
-            if r>=b: return -1 if signed and to_signed(clamp(l,b),b)<0 else 0
-            if signed:
-                left=to_signed(clamp(l,b),b)
-                dlog("signed compute", op, left, r, "bits", b)
-                return left>>r
-            return l>>r
-        if op=="rol": return rotate_left(l,b,r)
-        if op=="ror": return rotate_right(l,b,r)
-        return l
+    _compute = staticmethod(compute)
 
     def _format_entry(self,v):
-        return self._format_radix(v,self._radix)
+        return self._state.format_entry(v)
 
     def _format_radix(self,v,radix,pad=False):
-        u=clamp(v,self._bit_width)
-        if radix==16: return format(u,f"0{self._bit_width//4}X" if pad else "X")
-        if radix==8: return format(u,"o")
-        if radix==2: return format(u,f"0{self._bit_width}b" if pad else "b")
-        return str(to_signed(u,self._bit_width))
+        return self._state.format_radix(v,radix,pad)
 
     def _calc_bw(self,v):
-        if self._locked: return self._bit_width
-        if self._signed and v<0:
-            for b in (8,16,32,64):
-                if v >= -(1<<(b-1)):
-                    return b
-        if v==0: return 8
-        n=v.bit_length()
-        if n<=8: return 8
-        if n<=16: return 16
-        if n<=32: return 32
-        return 64
+        return self._state.calc_bw(v)
+
+    def _fit_value(self,value,signed_64=False):
+        return self._state.fit_value(value,signed_64)
 
     def _aux_value(self, name):
         u=clamp(self._value,self._bit_width)
