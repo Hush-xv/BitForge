@@ -1,3 +1,7 @@
+## v1.14.2 — Pending expression display consistency
+
+- The pending-expression hint in the display card now formats its left operand with the same rules as the main display: `0xFF ×` in HEX, `0b1010 XOR` in BIN, and the signed decimal value (e.g. `-1 +`) when signed mode is on — it previously always showed the raw unsigned decimal integer.
+
 ## v1.14.1 — Interaction detail fixes
 
 - Fixed empty-text key events (`"" in "0123456789"` is always true) swallowing F1 / F2 / Delete / arrow keys before their handlers could run — F1 help, F2 expression focus and Delete clear had been unreachable from the physical keyboard since v1.0.

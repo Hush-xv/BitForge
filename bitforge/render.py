@@ -66,6 +66,15 @@ def font_size_for(text, groups, available):
     return 14
 
 
+def format_value_prefix(v, st):
+    """按当前进制/符号模式格式化待定表达式的左操作数 (与主显示规则一致)。"""
+    if st.radix == 16: return "0x" + st.format_radix(v, 16)
+    if st.radix == 8: return "0o" + st.format_radix(v, 8)
+    if st.radix == 2: return "0b" + st.format_radix(v, 2)
+    u = clamp(v, st.bit_width)
+    return str(u if not st.signed else to_signed(u, st.bit_width))
+
+
 def aux_text(name, st, pad):
     """辅助行纯文本 (DEC/HEX/OCT/BIN), st 为 CalculatorState。"""
     u = clamp(st.value, st.bit_width)
@@ -110,7 +119,7 @@ def compute_display_model(st, *, pad_display, byte_order, available_width, dec_g
                      f"&nbsp;&nbsp;"
                      f"<span style='color:{value_color};font-weight:600;font-family:Consolas,monospace'>{aux_text(name, st, pad_display)}</span>")
     if st.pending is not None:
-        expr = f"{st.pending['lhs']} {OP_SYMBOLS[st.pending['op']]}"
+        expr = f"{format_value_prefix(st.pending['lhs'], st)} {OP_SYMBOLS[st.pending['op']]}"
     else:
         expr = ""
     le = None

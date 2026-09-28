@@ -1126,6 +1126,26 @@ check("grouping stays display-only after animation", w._display_value == "12345"
 w._set_dec_grouping(False)
 check("grouping toggles off after animation path", w._display.text() == "12345", w._display.text())
 
+# ======== 41. 待定表达式标签跟随进制/符号 ========
+print("=== 41. Pending expression follows radix / sign ===")
+
+w._clear_all(); w._rad(16); w._set_bit_width(8)
+w._value=0xFF; w._entry="FF"; w._refresh_display()
+w._apply_operator("mul")
+check("pending expr shows HEX operand", w._expr_label.text() == "0xFF \u00d7", w._expr_label.text())
+
+w._clear_all(); w._rad(2)
+w._value=0b1010; w._entry="1010"; w._refresh_display()
+w._apply_operator("xor")
+check("pending expr shows BIN operand", w._expr_label.text() == "0b1010 XOR", w._expr_label.text())
+
+w._clear_all(); w._rad(10); w._signed=True; w._set_bit_width(8)
+w._value=0xFF; w._entry="-1"; w._refresh_display()
+w._apply_operator("add")
+check("pending expr shows signed DEC operand", w._expr_label.text() == "-1 +", w._expr_label.text())
+w._signed=False
+w._clear_all()
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
