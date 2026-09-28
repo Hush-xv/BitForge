@@ -1,3 +1,11 @@
+## v1.11.0 — Internal refactor (behavior unchanged)
+
+- Split the single-file app into the `bitforge/` package: `core` (pure math/expression parsing), `state` (calculator state machine), `render` (display model), `theme`, `widgets`, `main_window`, `app`; `bitforge.py` stays as the launch shim and `python bitforge.py` / `python -m bitforge` both work.
+- Extracted `CalculatorState` as the single source of truth for calculator data with pure-Python transitions; undo/redo snapshots are now frozen dataclasses and automatic bit-width sync lives in the state machine instead of the display refresh.
+- Consolidated display formatting into `render.compute_display_model` (grouping, font fitting, aux rows, RGB chip, LE preview) applied to widgets through one diffing pass.
+- Added `test_core.py`: 455 pure-logic checks (math helpers, expression parser, state machine, undo/redo, randomized word math) that run without Qt/GUI in about a second; the 659-check UI suite remains the release gate.
+- All original import APIs (`from bitforge import BitForge, C, ...`) are preserved.
+
 ## v1.10.0-r3 — Release hardening
 
 - Added session-only calculator undo/redo (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) for numeric input, operations, clear, bit width, radix, sign mode, paste, bit clicks, tools, and expression results.

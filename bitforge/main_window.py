@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.10.0"
+    APP = "BitForge"; VER = "v1.11.0"
 
     def __init__(self):
         super().__init__()

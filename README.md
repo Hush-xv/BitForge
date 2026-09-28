@@ -142,15 +142,24 @@ python build.py --portable
 
 ```
 BitForge/
-├── bitforge.py       # Main application
-├── build.py          # PyInstaller packaging script
-├── test_bitforge.py  # Test suite — run before every release
-├── CHANGELOG.md      # Release notes
-├── bitforge.ico      # Application icon (256×256)
-├── run.bat           # Quick-launch script
+├── bitforge.py           # 入口薄壳 (python bitforge.py)
+├── bitforge/             # 主包
+│   ├── core.py           #   纯逻辑: 数学工具 / 表达式求值 / 数值解析 (无 Qt)
+│   ├── state.py          #   CalculatorState 计算状态机 + 撤销快照 (无 Qt)
+│   ├── render.py         #   DisplayModel 显示模型纯计算
+│   ├── theme.py          #   亮/暗主题配色
+│   ├── widgets.py        #   BFButton / DisplayText / BitGlow 自绘控件
+│   ├── main_window.py    #   BitForge 主窗口 (UI 与持久化)
+│   └── app.py            #   应用入口
+├── build.py              # PyInstaller packaging script
+├── test_core.py          # 纯逻辑测试 (无 GUI, 秒级) — 每次改动跑
+├── test_bitforge.py      # UI 集成回归 — 发布前跑
+├── CHANGELOG.md          # Release notes
+├── bitforge.ico          # Application icon (256×256)
+├── run.bat               # Quick-launch script
 ├── README.md
 └── dist/
-    └── BitForge/     # Standalone distribution
+    └── BitForge/         # Standalone distribution
         └── BitForge.exe
 ```
 
