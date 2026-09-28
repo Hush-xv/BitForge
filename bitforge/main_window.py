@@ -13,6 +13,8 @@ from PyQt5.QtWidgets import (
 from .core import (BIT_MASKS, OP_SYMBOLS, RADIX_DIGITS, byte_swap, clamp, dlog,
                    evaluate_expression, extract_field, parse_number, rotate_left,
                    rotate_right, to_signed, write_field)
+from .render import (aux_text, compute_display_model, display_groups, font_size_for,
+                     group_display, make_display_font)
 from .state import CalculatorState, compute
 from .theme import C, DARK_C, LIGHT_C
 from .widgets import BFButton, BitGlow, DisplayText, make_app_icon
@@ -476,10 +478,7 @@ class BitForge(QMainWindow):
 
     # ===== 工具 =====
     def _display_font(self,size):
-        """主显示字体: 等宽粗体, 数字宽度稳定不抖动。"""
-        f=QFont("Consolas",size,QFont.Bold)
-        f.setHintingPreference(QFont.PreferNoHinting)
-        return f
+        return make_display_font(size)
 
     def _toggle_shortcut_overlay(self):
         """按 ? 弹出/关闭快捷键速查浮层 (点外部或 Esc 关闭)。"""
@@ -1199,88 +1198,57 @@ class BitForge(QMainWindow):
         return self._state.fit_value(value,signed_64)
 
     def _aux_value(self, name):
-        u=clamp(self._value,self._bit_width)
-        if name=="DEC": return str(u if not self._signed else to_signed(u,self._bit_width))
-        if name=="HEX": return "0x"+self._format_radix(u,16,self._pad_display)
-        if name=="OCT": return f"0o{u:o}"
-        return "0b"+self._format_radix(u,2,self._pad_display)
+        return aux_text(name, self._state, self._pad_display)
 
     def _little_endian_preview(self):
         u=clamp(self._value,self._bit_width)
         return "0x"+u.to_bytes(self._bit_width//8,"big")[::-1].hex().upper()
 
     def _group_display(self,text):
-        groups=self._display_groups(text)
-        if groups is None: return text
-        prefix,parts=groups
-        return prefix+" ".join(parts)
+        return group_display(self._radix,text)
 
     def _display_groups(self,text):
-        if self._radix not in (2,16): return None
-        prefix,digits=text[:2],text[2:]
-        if (self._radix==16 and len(digits)>8) or (self._radix==2 and len(digits)>32):
-            return None
-        step=4 if self._radix==2 else 2
-        groups=[]
-        while digits:
-            groups.append(digits[-step:]); digits=digits[:-step]
-        return prefix,tuple(reversed(groups))
+        return display_groups(self._radix,text)
 
     def _display_font_size_for(self,text):
         margins=self._display.contentsMargins()
         # The RGB chip lives in the card's top-right while the value is bottom-aligned.
         available=max(80,self._display.width()-margins.left()-margins.right())
-        grouped=self._display_groups(text)
-        for size in (34,32,30,28,26,24,22,20,18,16,14):
-            metrics=QFontMetrics(self._display_font(size))
-            if grouped:
-                prefix,groups=grouped
-                width=metrics.horizontalAdvance(prefix)+sum(metrics.horizontalAdvance(group) for group in groups)
-                width+=DisplayText.GROUP_GAP*(len(groups)-1)
-            else:
-                width=metrics.horizontalAdvance(text)
-            if width<=available:
-                return size
-        return 14
+        return font_size_for(text, display_groups(self._radix,text), available)
 
     def _refresh_display(self):
         if self._error: return
-        self._bit_width=self._calc_bw(self._value); u=clamp(self._value,self._bit_width)
-        t=self._format_radix(self._value,self._radix,self._pad_display and self._radix in (2,16))
-        if self._radix==16: t="0x"+t
-        elif self._radix==8: t="0o"+t
-        elif self._radix==2: t="0b"+t
-        elif not self._signed: t=str(u)  # DEC 无符号
-        raw=t; visual=self._group_display(raw)
+        self._bit_width=self._calc_bw(self._value)   # 自动位宽跟随当前值 (未锁定时)
+        margins=self._display.contentsMargins()
+        # The RGB chip lives in the card's top-right while the value is bottom-aligned.
+        available=max(80,self._display.width()-margins.left()-margins.right())
+        m=compute_display_model(self._state, pad_display=self._pad_display,
+                                byte_order=self._byte_order, available_width=available)
         # 数值滚动动画 (仅 DEC、操作结果、值变幅 > 9)
-        if self._radix==10 and self._new_entry and t!=self._ani_last:
+        if self._radix==10 and self._new_entry and m.raw!=self._ani_last:
             try:
-                ov=int(self._ani_last); nv=int(t)
+                ov=int(self._ani_last); nv=int(m.raw)
                 if abs(nv-ov)>=10 and abs(nv-ov)<50000:
                     self._value_anim.stop()
                     self._value_anim.setStartValue(float(ov))
                     self._value_anim.setEndValue(float(nv))
                     self._value_anim.start()
             except: pass
-        self._ani_last=t
+        self._ani_last=m.raw
         if not self._ani_running:
-            groups=self._display_groups(raw)
-            if groups:
-                self._display.setGroupedText(*groups,visual)
+            if m.groups:
+                self._display.setGroupedText(*m.groups,m.visual)
             else:
-                self._display.setText(visual)
-        self._display_value=raw
-        font_size=self._display_font_size_for(raw)
-        if font_size!=self._display_font_size:
-            self._display_font_size=font_size; self._display.setFont(self._display_font(font_size))
-        self._display.setToolTip(f"完整值：{raw}\n右键可按进制复制")
-        s=to_signed(u,self._bit_width)
-        self._set_display_color(C["dsp_neg"] if (s<0 and self._radix==10 and self._signed) else C["dsp_fg"])
+                self._display.setText(m.visual)
+        self._display_value=m.raw
+        if m.font_size!=self._display_font_size:
+            self._display_font_size=m.font_size; self._display.setFont(self._display_font(m.font_size))
+        self._display.setToolTip(f"完整值：{m.raw}\n右键可按进制复制")
+        self._set_display_color(C["dsp_neg"] if m.negative else C["dsp_fg"])
         self._bit_indicator.set_val(self._value,self._bit_width)
-        if self._byte_order=="little":
-            preview=self._little_endian_preview()
-            self._byte_order_label.setText("LE" if self._compact_layout else f"LE  {preview}")
-            self._byte_order_label.setToolTip(f"Little Endian：{preview}\n不改变计算值或复制内容")
+        if m.le_preview is not None:
+            self._byte_order_label.setText("LE" if self._compact_layout else f"LE  {m.le_preview}")
+            self._byte_order_label.setToolTip(f"Little Endian：{m.le_preview}\n不改变计算值或复制内容")
             self._byte_order_label.show()
         else:
             self._byte_order_label.hide()
@@ -1294,24 +1262,13 @@ class BitForge(QMainWindow):
             self._bit_width_lb.setStyleSheet(f"color:{C['lock'] if self._locked else C['sub']};padding:0 6px 0 2px;")
         # 多进制辅助行 — 内容不变时跳过 setText, 避免富文本重复解析
         for name in ("DEC","HEX","OCT","BIN"):
-            active={"HEX":16,"DEC":10,"OCT":8,"BIN":2}[name]==self._radix
-            name_color=C["rad_on"] if active else C["sub"]
-            value_color=C["title"] if active else C["aux_fg"]
-            html=(f"<span style='color:{name_color};font-size:9px;font-weight:700'>{name}</span>"
-                  f"&nbsp;&nbsp;"
-                  f"<span style='color:{value_color};font-weight:600;font-family:Consolas,monospace'>{self._aux_value(name)}</span>")
-            if self._aux_last.get(name)!=html:
-                self._aux_last[name]=html
-                self._aux_labels[name].setText(html)
+            if self._aux_last.get(name)!=m.aux[name]:
+                self._aux_last[name]=m.aux[name]
+                self._aux_labels[name].setText(m.aux[name])
         # 显示区左下角 pending 表达式
-        if self._pending is not None:
-            sym=OP_SYMBOLS[self._pending["op"]]
-            expr=f"{self._pending['lhs']} {sym}"
-        else:
-            expr=""
-        if expr!=self._expr_last:
-            self._expr_last=expr
-            self._expr_label.setText(expr)
+        if m.expr!=self._expr_last:
+            self._expr_last=m.expr
+            self._expr_label.setText(m.expr)
         # 位域选择标签 — 值随当前数值实时更新
         if self._bit_indicator._sel is not None:
             v=(self._value>>self._bit_indicator._sel[0])&((1<<(self._bit_indicator._sel[1]-self._bit_indicator._sel[0]+1))-1)
@@ -1319,10 +1276,9 @@ class BitForge(QMainWindow):
                 lo,hi=self._bit_indicator._sel
                 self._set_selection_label(lo,hi,v)
         # RGB 色板 — 仅 HEX 模式, 取低 24 位
-        if self._radix==16:
-            rgb=u & 0xFFFFFF
-            chip=f"background:#{rgb:06X};border:1px solid {C['tb_bdr']};border-radius:3px;"
-            self._rgb_chip.setToolTip(f"RGB 预览 #{rgb:06X}")
+        if m.rgb is not None:
+            chip=f"background:#{m.rgb:06X};border:1px solid {C['tb_bdr']};border-radius:3px;"
+            self._rgb_chip.setToolTip(f"RGB 预览 #{m.rgb:06X}")
             if chip!=self._chip_last:
                 self._chip_last=chip
                 self._rgb_chip.setStyleSheet(chip); self._rgb_chip.show()

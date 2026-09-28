@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QLabel, QSizePolicy, QToolTip, QWidget
 from siui.components.button import SiPushButtonRefactor
 
 from .core import clamp
+from .render import GROUP_GAP
 from .theme import BH, BR, C, IR
 
 
@@ -145,7 +146,7 @@ class BFButton(SiPushButtonRefactor):
 
 class DisplayText(QLabel):
     """Right-aligned result label with deterministic byte-group gaps."""
-    GROUP_GAP=4
+    GROUP_GAP=GROUP_GAP   # 与渲染层同源 (bitforge/render.py)
 
     def __init__(self,parent=None):
         super().__init__(parent)
