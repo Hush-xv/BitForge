@@ -1,3 +1,12 @@
+## v1.13.0 — Status micro-line & DEC grouping
+
+- Added a status micro-line in the display card's top-left corner: `32 BIT · UNSIGNED · LOCKED` updates live and never steals mouse events.
+- Added an optional thousands-separator display for DEC (Tools > 格式与 Mask); grouping is display-only — the copied value, aux rows and `_display_value` stay raw, and the font-fit measures the grouped text.
+- Both preferences persist via QSettings (`format/dec_grouping`).
+- Fixed the ± sign button ignoring the persisted signed mode at startup and after theme rebuilds (button state now initializes from `self._signed`).
+- Refreshed `docs/` screenshots against the new UI.
+- New coverage: status micro-line states, DEC grouping toggle/copy semantics (`test_bitforge` §38) and `dec_group` string helper (`test_core`).
+
 ## v1.12.1 — Detail sweep
 
 - Cached display font metrics per size (`render._metrics`) so every keystroke's font fit no longer rebuilds `QFontMetrics` objects.

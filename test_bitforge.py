@@ -8,9 +8,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from PyQt5.QtCore import Qt, QEvent, QPoint, QVariantAnimation
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QApplication
-from bitforge import (BIT_MASKS, BitForge, C, DisplayText, byte_swap, clamp, evaluate_expression,
-                      extract_field, parse_number, rotate_left, rotate_right, to_signed,
-                      write_field)
+from bitforge import (BIT_MASKS, BitForge, C, DisplayText, byte_swap, clamp, dec_group,
+                      evaluate_expression, extract_field, parse_number, rotate_left,
+                      rotate_right, to_signed, write_field)
 
 app = QApplication(sys.argv)
 w = BitForge()
@@ -834,7 +834,7 @@ print("=== 32. Release polish: display state / Bit Map / Mask draft ===")
 
 w._clear_all(); w._signed=False; w._rad(16); w._set_bit_width(32)
 w._value=0x1234; w._refresh_display(); app.processEvents()
-check("display remains free of status labels", not hasattr(w,"_display_meta"), "display metadata exists")
+check("display carries a status micro-line", hasattr(w,"_status_label"), "status label missing")
 check("selection pill has a fixed width", w._sel_label.width()==158, str(w._sel_label.width()))
 w._on_mask_changed("0xF0")
 w._on_mask_changed("0xBAD!")
@@ -1038,6 +1038,35 @@ w.resize(680,720); w._update_layout_density(); app.processEvents()
 regular_margins=w._root_layout.contentsMargins()
 check("regular layout restores balanced margins", regular_margins.left()==14 and regular_margins.top()==8,
       f"margins={regular_margins.left()},{regular_margins.top()}")
+
+# ======== 38. UI 状态微行 / DEC 千分位分组 ========
+print("=== 38. Status micro-line / DEC grouping ===")
+
+w._clear_all(); w._rad(10); w._set_bit_width(32)
+w._refresh_display(); app.processEvents()
+check("status micro-line exists", hasattr(w, "_status_label"))
+check("status shows width and sign mode",
+      "32 BIT" in w._status_label.text() and "UNSIGNED" in w._status_label.text(),
+      w._status_label.text())
+check("status reflects lock state", "LOCKED" in w._status_label.text(), w._status_label.text())
+w._toggle_sign()
+check("status reflects signed mode",
+      "SIGNED" in w._status_label.text() and "UNSIGNED" not in w._status_label.text(),
+      w._status_label.text())
+w._toggle_sign()
+
+w._clear_all(); w._rad(10); w._locked=False; w._value=1234567; w._refresh_display()
+check("DEC grouping off by default", w._display.text() == "1234567", w._display.text())
+w._set_dec_grouping(True)
+check("DEC display groups thousands", w._display.text() == "1,234,567", w._display.text())
+check("grouping is display-only", w._display_value == "1234567", w._display_value)
+w._copy_current()
+check("copy stays raw under grouping", QApplication.clipboard().text() == "1234567",
+      QApplication.clipboard().text())
+w._set_dec_grouping(False)
+check("DEC grouping toggles off", w._display.text() == "1234567", w._display.text())
+check("dec_group helper handles sign, short and non-digit text",
+      dec_group("-1234567") == "-1,234,567" and dec_group("12") == "12" and dec_group("0x1F") == "0x1F")
 
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")

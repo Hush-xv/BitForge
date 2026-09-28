@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.12.1"
+    APP = "BitForge"; VER = "v1.13.0"
 
     def __init__(self):
         super().__init__()
@@ -34,6 +34,7 @@ class BitForge(QMainWindow):
         self._lock_style_state=None   # 上次刷新时的锁定状态 (样式 guard)
         self._aux_last={}             # 辅助行上次 HTML (setText guard)
         self._expr_last=""            # 表达式行上次文本
+        self._status_last=None        # 状态微行上次文本 (setText guard)
         self._display_value="0"       # 未分组的显示值，供复制和右键菜单使用
         self._display_font_size=None
         self._sel_value=None          # 当前选中位域的值 (点击 SEL 标签复制)
@@ -250,7 +251,9 @@ class BitForge(QMainWindow):
         self._sign_btn.setFont(self._si_font(14))
         self._sign_btn.setFixedSize(34,26)
         self._sign_btn.setCheckable(True)
-        self._sign_btn.setStyleSheet(self._sign_style(False))
+        # 按恢复的符号模式初始化 (持久化 signed=True 时按钮态必须一致)
+        self._sign_btn.setChecked(self._signed)
+        self._sign_btn.setStyleSheet(self._sign_style(self._signed))
         self._sign_btn.clicked.connect(self._toggle_sign)
         tbl.addWidget(self._sign_btn)
         self._lock_btn=QPushButton("\U0001f512")
@@ -329,6 +332,11 @@ class BitForge(QMainWindow):
         self._expr_label.setStyleSheet(f"color:{C['sub']};font-size:13px;font-weight:600;")
         self._expr_label.setAlignment(Qt.AlignLeft|Qt.AlignBottom)
         self._expr_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        # 显示区左上角: 位宽/符号/锁定 状态微行
+        self._status_label=QLabel(self._display)
+        self._status_label.setStyleSheet(f"color:{C['sub']};font-size:10px;font-weight:700;letter-spacing:0.6px;")
+        self._status_label.setAlignment(Qt.AlignLeft|Qt.AlignTop)
+        self._status_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._display.installEventFilter(self)
         self._display.setContextMenuPolicy(Qt.CustomContextMenu)
         self._display.customContextMenuRequested.connect(self._show_display_menu)
@@ -541,6 +549,9 @@ class BitForge(QMainWindow):
             m=self._display.contentsMargins()
             self._expr_label.setGeometry(m.left(), 0,
                 self._display.width()-m.left()-m.right(), self._display.height()-3)
+            # 状态微行贴左上, 右侧让位 RGB 色板
+            self._status_label.setGeometry(m.left(), 4,
+                max(40,self._display.width()-m.left()-m.right()-60), 14)
             self._rgb_chip.move(self._display.width()-34, 9)
         return super().eventFilter(obj,ev)
 
@@ -609,6 +620,7 @@ class BitForge(QMainWindow):
         self._bit_width=s.value("calc/bit_width",8,type=int)
         if self._bit_width not in BIT_MASKS: self._bit_width=8
         self._pad_display=s.value("format/pad_display",False,type=bool)
+        self._dec_grouping=s.value("format/dec_grouping",False,type=bool)
         self._byte_order=s.value("format/byte_order","native")
         if self._byte_order not in ("native","little"): self._byte_order="native"
         self._mask_favorites=self._restore_number_history(s.value("calc/mask_favorites",[]),8)
@@ -665,7 +677,7 @@ class BitForge(QMainWindow):
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
-        self._aux_last={}; self._expr_last=""; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
+        self._aux_last={}; self._expr_last=""; self._status_last=None; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
         self._update_layout_density(); self._refresh_display()
         if self._error:
@@ -684,6 +696,7 @@ class BitForge(QMainWindow):
             s.setValue("calc/locked",self._locked)
             s.setValue("calc/bit_width",self._bit_width)
             s.setValue("format/pad_display",self._pad_display)
+            s.setValue("format/dec_grouping",self._dec_grouping)
             s.setValue("format/byte_order",self._byte_order)
             s.setValue("calc/mask_favorites",[str(v) for v in self._mask_favorites])
             s.setValue("calc/field_start",self._field_recent[0])
@@ -1017,6 +1030,8 @@ class BitForge(QMainWindow):
         format_menu=m.addMenu("格式与 Mask")
         a_pad=format_menu.addAction("HEX / BIN 补齐到位宽")
         a_pad.setCheckable(True); a_pad.setChecked(self._pad_display)
+        a_decgrp=format_menu.addAction("DEC 千分位分组显示")
+        a_decgrp.setCheckable(True); a_decgrp.setChecked(self._dec_grouping)
         order_menu=format_menu.addMenu("字节序预览")
         a_native=order_menu.addAction("原始字节序")
         a_native.setCheckable(True); a_native.setChecked(self._byte_order=="native")
@@ -1058,6 +1073,7 @@ class BitForge(QMainWindow):
         elif act==a_extract: self._extract_field()
         elif act==a_write: self._write_field()
         elif act==a_pad: self._set_padding(not self._pad_display)
+        elif act==a_decgrp: self._set_dec_grouping(not self._dec_grouping)
         elif act==a_native: self._set_byte_order("native")
         elif act==a_little: self._set_byte_order("little")
         elif act in mask_actions: self._apply_mask_value(mask_actions[act],"已应用常用 Mask")
@@ -1083,6 +1099,11 @@ class BitForge(QMainWindow):
         self._pad_display=bool(on); self._refresh_display()
         self._toast("HEX / BIN 已补齐到位宽" if on else "HEX / BIN 使用紧凑显示")
         dlog("display padding", on)
+
+    def _set_dec_grouping(self,on):
+        self._dec_grouping=bool(on); self._refresh_display()
+        self._toast("DEC 千分位分组显示" if on else "DEC 使用紧凑显示")
+        dlog("dec grouping", on)
 
     def _set_byte_order(self,order):
         if order not in ("native","little") or order==self._byte_order: return
@@ -1232,7 +1253,8 @@ class BitForge(QMainWindow):
         # The RGB chip lives in the card's top-right while the value is bottom-aligned.
         available=max(80,self._display.width()-margins.left()-margins.right())
         m=compute_display_model(self._state, pad_display=self._pad_display,
-                                byte_order=self._byte_order, available_width=available)
+                                byte_order=self._byte_order, available_width=available,
+                                dec_grouping=self._dec_grouping)
         # 数值滚动动画 (仅 DEC、操作结果、值变幅 > 9)
         if self._radix==10 and self._new_entry and m.raw!=self._ani_last:
             try:
@@ -1248,7 +1270,7 @@ class BitForge(QMainWindow):
             if m.groups:
                 self._display.setGroupedText(*m.groups,m.visual)
             else:
-                self._display.setText(m.visual)
+                self._display.setText(m.display_text)
         self._display_value=m.raw
         if m.font_size!=self._display_font_size:
             self._display_font_size=m.font_size; self._display.setFont(self._display_font(m.font_size))
@@ -1263,6 +1285,11 @@ class BitForge(QMainWindow):
             self._byte_order_label.hide()
         bw_text=f"{self._bit_width}b"
         if self._bit_width_lb.text()!=bw_text: self._bit_width_lb.setText(bw_text)
+        # 状态微行 — 位宽/符号/锁定, 内容不变时跳过
+        status=f"{self._bit_width} BIT · {'SIGNED' if self._signed else 'UNSIGNED'} · {'LOCKED' if self._locked else 'AUTO'}"
+        if status!=self._status_last:
+            self._status_last=status
+            self._status_label.setText(status)
         # 位宽标签/锁按钮样式 — 仅锁定状态变化时刷新, 避免每次按键重刷样式表
         if self._locked != self._lock_style_state:
             self._lock_style_state=self._locked

@@ -164,3 +164,16 @@ def parse_number(text):
         digits=raw; base=10
     if not digits: raise ValueError("缺少数值")
     return sign*int(digits,base)
+
+def dec_group(text, sep=","):
+    """十进制千分位分组 (仅用于显示; 复制值保持原样)。非纯数字文本原样返回。"""
+    sign=""
+    if text.startswith("-"):
+        sign,text="-",text[1:]
+    if not text.isdigit():
+        return sign+text
+    parts=[]
+    while len(text)>3:
+        parts.append(text[-3:]); text=text[:-3]
+    parts.append(text)
+    return sign+sep.join(reversed(parts))

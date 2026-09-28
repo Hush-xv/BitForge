@@ -8,7 +8,7 @@ from typing import Optional
 
 from PyQt5.QtGui import QFont, QFontMetrics
 
-from .core import OP_SYMBOLS, clamp, to_signed
+from .core import OP_SYMBOLS, clamp, dec_group, to_signed
 from .theme import C
 
 GROUP_GAP = 4   # DisplayText 字节/半字节组间距 (像素)
@@ -81,6 +81,7 @@ class DisplayModel:
     raw: str                    # 未分组显示文本 (复制/工具提示用)
     visual: str                 # 分组后文本 (非 HEX/BIN 等于 raw)
     groups: Optional[tuple]     # (prefix, groups) 或 None
+    display_text: str           # 实际绘制的文本 (DEC 千分位在此, raw 保持可复制原样)
     font_size: int
     negative: bool              # DEC 有符号负数 → 红色
     aux: dict                   # name -> 辅助行 HTML
@@ -89,7 +90,7 @@ class DisplayModel:
     le_preview: Optional[str]   # Little Endian 预览; 原始字节序 None
 
 
-def compute_display_model(st, *, pad_display, byte_order, available_width):
+def compute_display_model(st, *, pad_display, byte_order, available_width, dec_grouping=False):
     """由计算状态计算待渲染数据。纯计算, 不触碰控件。"""
     u = clamp(st.value, st.bit_width)
     t = st.format_radix(st.value, st.radix, pad_display and st.radix in (2, 16))
@@ -99,6 +100,7 @@ def compute_display_model(st, *, pad_display, byte_order, available_width):
     elif not st.signed: t = str(u)   # DEC 无符号
     groups = display_groups(st.radix, t)
     visual = t if groups is None else groups[0] + " ".join(groups[1])
+    display_text = dec_group(t) if (dec_grouping and st.radix == 10) else t
     aux = {}
     for name in ("DEC", "HEX", "OCT", "BIN"):
         active = {"HEX": 16, "DEC": 10, "OCT": 8, "BIN": 2}[name] == st.radix
@@ -115,8 +117,8 @@ def compute_display_model(st, *, pad_display, byte_order, available_width):
     if byte_order == "little":
         le = "0x" + u.to_bytes(st.bit_width // 8, "big")[::-1].hex().upper()
     return DisplayModel(
-        raw=t, visual=visual, groups=groups,
-        font_size=font_size_for(t, groups, available_width),
+        raw=t, visual=visual, groups=groups, display_text=display_text,
+        font_size=font_size_for(display_text, groups, available_width),
         negative=(st.signed and st.radix == 10 and to_signed(u, st.bit_width) < 0),
         aux=aux, expr=expr,
         rgb=(u & 0xFFFFFF) if st.radix == 16 else None,

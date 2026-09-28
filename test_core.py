@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from bitforge.core import (BIT_MASKS, byte_swap, clamp, evaluate_expression,
+from bitforge.core import (BIT_MASKS, byte_swap, clamp, dec_group, evaluate_expression,
                            extract_field, parse_number, rotate_left, rotate_right,
                            to_signed, write_field)
 from bitforge.state import CalculatorState, compute
@@ -98,6 +98,11 @@ try:
     check("parse invalid raises", False)
 except ValueError:
     check("parse invalid raises", True)
+
+check("dec_group basic", dec_group("1234567") == "1,234,567")
+check("dec_group negative", dec_group("-1234567") == "-1,234,567")
+check("dec_group short stays flat", dec_group("12") == "12")
+check("dec_group non-digit passthrough", dec_group("0x1F") == "0x1F")
 
 # ======== 4. compute 纯函数 ========
 print("=== 4. compute() ===")
