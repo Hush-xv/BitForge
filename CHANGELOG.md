@@ -1,3 +1,8 @@
+## v1.14.3 — Error-state consistency
+
+- Entering the error state now clears the stale pending-expression hint (the operator had been dropped by `enter_error`, but the display card still showed e.g. `10 ÷`) and the leftover value tooltip, so nothing on screen claims a live value while `Error` is shown. Both are restored automatically on recovery since the refresh pipeline re-applies them unconditionally.
+- New coverage: error-state consistency for hint text, tooltip and recovery (`test_bitforge` §42).
+
 ## v1.14.2 — Pending expression display consistency
 
 - The pending-expression hint in the display card now formats its left operand with the same rules as the main display: `0xFF ×` in HEX, `0b1010 XOR` in BIN, and the signed decimal value (e.g. `-1 +`) when signed mode is on — it previously always showed the raw unsigned decimal integer.

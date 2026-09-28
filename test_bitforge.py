@@ -1146,6 +1146,23 @@ check("pending expr shows signed DEC operand", w._expr_label.text() == "-1 +", w
 w._signed=False
 w._clear_all()
 
+# ======== 42. 错误态一致性: 待定提示 / tooltip 残留 ========
+print("=== 42. Error-state consistency ===")
+
+w._clear_all(); w._rad(10)
+w._value=10; w._entry="10"; w._refresh_display()
+w._apply_operator("add")
+w._apply_operator("div")
+check("pending expr visible before error", w._expr_label.text() == "10 \u00f7", w._expr_label.text())
+w._value=0; w._entry="0"; w._new_entry=False; w._refresh_display()
+w._equals()
+check("error state entered", w._error and w._display.text() == "Error", w._display.text())
+check("error clears stale pending expr", w._expr_label.text() == "", w._expr_label.text())
+check("error clears stale value tooltip", w._display.toolTip() == "", repr(w._display.toolTip()))
+w._input_digit("3")
+check("recovery restores tooltip", "完整值" in w._display.toolTip(), w._display.toolTip())
+w._clear_all()
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:

@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.14.2"
+    APP = "BitForge"; VER = "v1.14.3"
 
     def __init__(self):
         super().__init__()
@@ -902,6 +902,9 @@ class BitForge(QMainWindow):
         """错误态 UI 呈现 (数据字段已由 state.enter_error 清理)。"""
         self._value_anim.stop(); self._ani_running=False
         self._set_active_op(None)
+        # pending 已清空, 残留的待定表达式提示与数值 tooltip 不能再展示旧状态
+        self._expr_last=""; self._expr_label.setText("")
+        self._display.setToolTip("")
         self._display.setText("Error"); self._set_display_color(C["dsp_neg"])
         self._toast(message,"error")
         dlog("calculation error:", message)
