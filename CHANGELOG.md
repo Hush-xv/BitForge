@@ -1,3 +1,9 @@
+## v1.14.4 — Theme switch focus & highlight
+
+- Rebuilding the UI on theme change no longer drops the pending-operator highlight: after `_build_ui`, the active operator key is re-lit from `state.active_op` (same family as the v1.13.0 ± fix — the "12 +" highlight used to vanish after switching themes).
+- Focus is preserved across theme rebuilds: typing in the expression bar or mask input survives the switch (the follow-system poll can rebuild at any moment); previously focus fell back to the window and keystrokes went nowhere.
+- New coverage: pending highlight and expression/mask focus restoration across theme switches (`test_bitforge` §43).
+
 ## v1.14.3 — Error-state consistency
 
 - Entering the error state now clears the stale pending-expression hint (the operator had been dropped by `enter_error`, but the display card still showed e.g. `10 ÷`) and the leftover value tooltip, so nothing on screen claims a live value while `Error` is shown. Both are restored automatically on recovery since the refresh pipeline re-applies them unconditionally.

@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.14.3"
+    APP = "BitForge"; VER = "v1.14.4"
 
     def __init__(self):
         super().__init__()
@@ -685,11 +685,18 @@ class BitForge(QMainWindow):
         if theme==self._theme: return
         expression=self._expression_input.text()
         mask=self._mask_le.text()
+        focused=QApplication.focusWidget()
+        had_expr_focus = focused is self._expression_input
+        had_mask_focus = focused is self._mask_le
         self._theme=theme; self._apply_theme_colors(); self._set_style()
         old=self.takeCentralWidget()
         if old is not None: old.deleteLater()
         self._aux_last={}; self._expr_last=""; self._status_last=None; self._lock_style_state=None; self._display_font_size=None; self._chip_last=None; self._last_model=None
         self._build_ui(); self._expression_input.setText(expression); self._mask_le.setText(mask)
+        # 焦点与待定运算高亮跟随状态恢复 (跟随系统轮询可能在输入途中触发重建)
+        if had_expr_focus: self._expression_input.setFocus()
+        elif had_mask_focus: self._mask_le.setFocus()
+        self._set_active_op(self._state.active_op)
         self._update_layout_density(); self._refresh_display()
         if self._error:
             # 错误态换主题后重绘 Error, 避免显示回流为默认 0

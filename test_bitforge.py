@@ -1163,6 +1163,28 @@ w._input_digit("3")
 check("recovery restores tooltip", "完整值" in w._display.toolTip(), w._display.toolTip())
 w._clear_all()
 
+# ======== 43. 主题切换: 待定高亮恢复 / 聚焦保持 ========
+print("=== 43. Theme switch highlight / focus ===")
+
+w._clear_all(); w._rad(10)
+w._value=12; w._entry="12"; w._refresh_display()
+w._apply_operator("add")
+check("pending op lit before theme switch", w._op_btns["add"]._active)
+w._set_theme("dark"); app.processEvents()
+check("theme switch restores pending op highlight", w._op_btns["add"]._active,
+      str({k: b._active for k, b in w._op_btns.items()}))
+
+w._expression_input.setFocus(); app.processEvents()
+w._set_theme("light"); app.processEvents()
+check("theme switch keeps expression focus", QApplication.focusWidget() is w._expression_input,
+      str(QApplication.focusWidget()))
+w._mask_le.setFocus(); app.processEvents()
+w._set_theme("dark"); app.processEvents()
+check("theme switch keeps mask focus", QApplication.focusWidget() is w._mask_le,
+      str(QApplication.focusWidget()))
+w._set_theme("light"); app.processEvents()
+w._clear_all()
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:
