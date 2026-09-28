@@ -1,3 +1,12 @@
+## v1.12.1 — Detail sweep
+
+- Cached display font metrics per size (`render._metrics`) so every keystroke's font fit no longer rebuilds `QFontMetrics` objects.
+- `=` with neither a pending operation nor a repeatable last operation now returns immediately, matching the original no-op semantics instead of running a redundant refresh.
+- Removed dead surface: unused `HINT` constant and `DisplayText.setBackgroundColor` / `setBorderRadius` no-op stubs.
+- Narrowed two bare `except:` clauses (`_si_font` to `Exception`, value animation to `ValueError`).
+- Documented the per-radix maximum input length table in `state.input_digit`.
+- Startup import profile measured at ~196 ms (siui dominates); the pure-logic suite runs in ~0.24 s — no lazy-import machinery warranted.
+
 ## v1.12.0 — UI & layout refresh
 
 - Introduced design tokens (`SP` spacing / `RD` radius scales in `theme.py`) and a shared shadow helper (`widgets.make_shadow`); toolbar, display card, expression bar, menus, toasts and aux rows now use the unified scales.

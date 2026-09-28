@@ -165,12 +165,6 @@ class DisplayText(QLabel):
     def setTextColor(self,color):
         self._text_color=QColor(color); self.update()
 
-    def setBackgroundColor(self,color):
-        pass
-
-    def setBorderRadius(self,radius):
-        pass
-
     def setGroupedText(self,prefix,groups,accessible_text):
         self._groups=(prefix,tuple(groups))
         super().setText(accessible_text)

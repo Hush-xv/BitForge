@@ -41,10 +41,20 @@ def group_display(radix, text):
     return prefix + " ".join(parts)
 
 
+_FM_CACHE = {}   # 字号 -> QFontMetrics (Consolas 等宽粗体固定, 每次刷新省去重复构建)
+
+def _metrics(size):
+    fm = _FM_CACHE.get(size)
+    if fm is None:
+        fm = QFontMetrics(make_display_font(size))
+        _FM_CACHE[size] = fm
+    return fm
+
+
 def font_size_for(text, groups, available):
     """在 available 像素宽度内能放下的最大显示字号。"""
     for size in (34, 32, 30, 28, 26, 24, 22, 20, 18, 16, 14):
-        metrics = QFontMetrics(make_display_font(size))
+        metrics = _metrics(size)
         if groups:
             prefix, gs = groups
             width = metrics.horizontalAdvance(prefix) + sum(metrics.horizontalAdvance(g) for g in gs)

@@ -21,7 +21,7 @@ from .widgets import BFButton, BitGlow, DisplayText, make_app_icon, make_shadow
 
 
 class BitForge(QMainWindow):
-    APP = "BitForge"; VER = "v1.12.0"
+    APP = "BitForge"; VER = "v1.12.1"
 
     def __init__(self):
         super().__init__()
@@ -63,8 +63,6 @@ class BitForge(QMainWindow):
         if g:
             try: self.restoreGeometry(QByteArray.fromBase64(g.encode()))
             except Exception: pass
-
-    HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Tab 切换进制  Ctrl+Z/Y  Ctrl+C/V  F1 帮助"
 
     # ---- 状态委托: 数据真源在 self._state, 保留旧属性名使窗口代码与测试零改动 ----
     @property
@@ -320,7 +318,6 @@ class BitForge(QMainWindow):
         self._display_card.setStyleSheet(f"QFrame#displayCard{{background:{C['dsp_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['xl']}px;}}")
         display_layout=QVBoxLayout(self._display_card); display_layout.setContentsMargins(0,0,0,0)
         self._display=DisplayText(self); self._display.setFixedHeight(84)
-        self._display.setBackgroundColor(C["dsp_bg"]); self._display.setBorderRadius(RD['xl'])
         self._display.setAlignment(Qt.AlignRight|Qt.AlignBottom)
         self._display.setFont(self._display_font(34)); self._display.setTextColor(C["dsp_fg"])
         self._display.setText("0"); self._display.setContentsMargins(18,12,18,10)
@@ -736,7 +733,7 @@ class BitForge(QMainWindow):
         try:
             from siui.gui import SiFont
             return SiFont.getFont(size=s)
-        except: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
+        except Exception: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
     def _radix_btn_style(self,on,first=False,last=False):
         """连通式分段: 仅首末段保留外侧圆角, 中段直角相连。"""
@@ -1187,6 +1184,7 @@ class BitForge(QMainWindow):
 
     def _equals(self):
         if self._error: return
+        if self._state.pending is None and self._state.last_op is None: return
         err,mem=self._state.equals()
         if err:
             self._show_error_ui(err); return
@@ -1244,7 +1242,7 @@ class BitForge(QMainWindow):
                     self._value_anim.setStartValue(float(ov))
                     self._value_anim.setEndValue(float(nv))
                     self._value_anim.start()
-            except: pass
+            except ValueError: pass
         self._ani_last=m.raw
         if not self._ani_running:
             if m.groups:

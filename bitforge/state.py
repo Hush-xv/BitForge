@@ -127,6 +127,8 @@ class CalculatorState:
         if self.error: self.clear_all()
         if d not in RADIX_DIGITS.get(self.radix, ""):
             dlog("digit rejected:", d, "radix:", self.radix); return None
+        # 各进制在越界检查前允许的最大输入位数:
+        # 十进制 20 位 > 2^64-1 的 20 位, 八进制 22 位 > 2^64-1 的 22 位, HEX 16 位, BIN 锁定时按位宽
         mx = {2: self.bit_width if self.locked else 64, 8: 22, 10: 20, 16: 16}[self.radix]
         if self.new_entry:
             candidate = d
