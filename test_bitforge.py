@@ -994,6 +994,51 @@ check("signed keypad right shift displays -64", w._value==0xC0 and w._aux_value(
       f"value={hex(w._value)} dec={w._aux_value('DEC')}")
 w._signed=False
 
+# ======== 37. Release hardening: arithmetic boundaries / undo / density ========
+print("=== 37. Release hardening: arithmetic boundaries / undo / density ===")
+
+check("signed minimum divided by -1 wraps at word width",
+      evaluate_expression("-128 / -1",8,True)==0x80,
+      hex(evaluate_expression("-128 / -1",8,True)))
+check("signed maximum-width right shift keeps sign fill",
+      evaluate_expression("-128 >> 8",8,True)==0xFF,
+      hex(evaluate_expression("-128 >> 8",8,True)))
+check("left shift beyond 64-bit range is zero", BitForge._compute("lsh",1,64,8)==0)
+try:
+    BitForge._compute("rsh",1,-1,8)
+    negative_shift_rejected=False
+except ValueError:
+    negative_shift_rejected=True
+check("negative keypad shift is rejected", negative_shift_rejected)
+
+w._clear_all(); w._undo_stack.clear(); w._redo_stack.clear(); w._rad(10)
+for digit in "123": w._input_digit(digit)
+w._undo()
+check("undo restores previous digit", w._value==12 and w._entry=="12", f"{w._value}/{w._entry}")
+w._redo()
+check("redo restores digit", w._value==123 and w._entry=="123", f"{w._value}/{w._entry}")
+w._apply_operator("add")
+w._undo()
+check("undo restores pending operation", w._pending is None and w._value==123, str(w._pending))
+w._redo()
+check("redo restores pending operation", w._pending is not None and w._pending["op"]=="add", str(w._pending))
+w._set_bit_width(16)
+w._undo()
+check("undo restores automatic width", w._bit_width==8 and not w._locked, f"{w._bit_width}/{w._locked}")
+w._redo()
+check("redo restores locked width", w._bit_width==16 and w._locked, f"{w._bit_width}/{w._locked}")
+
+w.resize(560,720); w._update_layout_density(); app.processEvents()
+compact_margins=w._root_layout.contentsMargins()
+check("compact layout reduces top whitespace",
+      compact_margins.left()==10 and compact_margins.top()==8 and w._display.height()==84,
+      f"margins={compact_margins.left()},{compact_margins.top()} display={w._display.height()}")
+check("Bit Map keeps a fixed keypad slot", w._bit_indicator.height()==82, str(w._bit_indicator.height()))
+w.resize(680,720); w._update_layout_density(); app.processEvents()
+regular_margins=w._root_layout.contentsMargins()
+check("regular layout restores balanced margins", regular_margins.left()==14 and regular_margins.top()==8,
+      f"margins={regular_margins.left()},{regular_margins.top()}")
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:

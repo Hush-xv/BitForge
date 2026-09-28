@@ -1,3 +1,11 @@
+## v1.10.0-r3 — Release hardening
+
+- Added session-only calculator undo/redo (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) for numeric input, operations, clear, bit width, radix, sign mode, paste, bit clicks, tools, and expression results.
+- Kept expression-editor text undo native to the input box, so calculator-state undo never overwrites in-progress expression edits.
+- Hardened signed division/modulo after fixed-width conversion and made negative shift counts report validation errors.
+- Reduced top-level layout whitespace while retaining the fixed display and Bit Map heights that keep the keypad stationary.
+- Added regression coverage for signed boundary arithmetic, undo/redo state restoration, and responsive layout density.
+
 ## v1.10.0 — History sources, Tab radix cycle, follow system theme
 
 - Result history now records its source: keypad operations, tool actions or the expression text.

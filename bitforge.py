@@ -659,6 +659,9 @@ class BitForge(QMainWindow):
         self._history=[]              # 最近结果 (最新在前, 上限 10)
         self._expression_history=[]   # 最近表达式（最新在前，上限 5）
         self._last_op=None            # 连按 = 重复上次运算
+        self._undo_stack=[]           # 当前会话撤销栈；不写入设置，避免恢复旧计算值
+        self._redo_stack=[]
+        self._restoring_state=False
         self._settings=QSettings("BitForge","BitForge")
         self._restore_settings()
         self._apply_theme_colors()
@@ -683,7 +686,7 @@ class BitForge(QMainWindow):
             try: self.restoreGeometry(QByteArray.fromBase64(g.encode()))
             except Exception: pass
 
-    HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Tab 切换进制  Ctrl+C/V  F1 帮助"
+    HINT = "KB  0-9 A-F  + - * / % & | ^ ~  Enter  Esc  Tab 切换进制  Ctrl+Z/Y  Ctrl+C/V  F1 帮助"
 
     def _ani_set_text(self,val):
         self._display.setText(f"{val:.0f}")
@@ -743,12 +746,75 @@ class BitForge(QMainWindow):
         self._display.setTextColor(color)
         self._display.setStyleSheet(f"background:transparent;color:{color};border:none;")
 
+    # ===== 当前会话撤销 / 重做 =====
+    def _snapshot_state(self):
+        """Capture only calculator state; history and preferences are intentionally not undone."""
+        return {
+            "value":self._value, "entry":self._entry, "radix":self._radix,
+            "bit_width":self._bit_width, "locked":self._locked, "signed":self._signed,
+            "new_entry":self._new_entry, "error":self._error,
+            "pending":None if self._pending is None else self._pending.copy(),
+            "last_op":None if self._last_op is None else self._last_op.copy(),
+        }
+
+    def _record_undo(self):
+        if self._restoring_state: return
+        snapshot=self._snapshot_state()
+        if self._undo_stack and self._undo_stack[-1]==snapshot: return
+        self._undo_stack.append(snapshot)
+        del self._undo_stack[:-50]
+        self._redo_stack.clear()
+        dlog("undo snapshot", "undo", len(self._undo_stack))
+
+    def _restore_calculator_state(self,state):
+        self._restoring_state=True
+        try:
+            self._value=state["value"]; self._entry=state["entry"]; self._radix=state["radix"]
+            self._bit_width=state["bit_width"]; self._locked=state["locked"]; self._signed=state["signed"]
+            self._new_entry=state["new_entry"]; self._error=state["error"]
+            self._pending=None if state["pending"] is None else state["pending"].copy()
+            self._last_op=None if state["last_op"] is None else state["last_op"].copy()
+            self._value_anim.stop(); self._ani_running=False; self._ani_last=""
+            self._lock_style_state=None; self._aux_last={}; self._expr_last=""
+            self._sign_btn.setChecked(self._signed)
+            self._sign_btn.setStyleSheet(self._sign_style(self._signed))
+            self._refresh_radix_buttons()
+            self._bit_indicator.clear_selection()
+            if self._error:
+                self._set_active_op(None)
+                self._display.setText("Error"); self._set_display_color(C["dsp_neg"])
+            else:
+                self._set_active_op(self._pending["op"] if self._pending else None)
+                self._refresh_display()
+        finally:
+            self._restoring_state=False
+
+    def _undo(self):
+        if not self._undo_stack:
+            self._toast("没有可撤销的操作","warning")
+            return
+        self._redo_stack.append(self._snapshot_state())
+        state=self._undo_stack.pop()
+        self._restore_calculator_state(state)
+        self._toast("已撤销")
+        dlog("undo applied", "undo", len(self._undo_stack), "redo", len(self._redo_stack))
+
+    def _redo(self):
+        if not self._redo_stack:
+            self._toast("没有可重做的操作","warning")
+            return
+        self._undo_stack.append(self._snapshot_state())
+        state=self._redo_stack.pop()
+        self._restore_calculator_state(state)
+        self._toast("已重做")
+        dlog("redo applied", "undo", len(self._undo_stack), "redo", len(self._redo_stack))
+
     # ===== 构建 UI =====
     def _build_ui(self):
         from siui.components.label import SiLabelRefactor
         from siui.gui import SiFont
         cw=QWidget(self); self.setCentralWidget(cw)
-        v=QVBoxLayout(cw); v.setContentsMargins(18,12,18,16); v.setSpacing(8)
+        v=QVBoxLayout(cw); v.setContentsMargins(14,8,14,12); v.setSpacing(6)
         self._root_layout=v
         self._compact_layout=None
 
@@ -756,7 +822,7 @@ class BitForge(QMainWindow):
         tb=QFrame(); tb.setObjectName("calcToolbar")
         self._toolbar=tb
         tb.setStyleSheet(f"QFrame#calcToolbar{{background:{C['tb_bg']};border:1px solid {C['tb_bdr']};border-radius:12px;}}")
-        tbl=QHBoxLayout(tb); tbl.setContentsMargins(8,5,8,5); tbl.setSpacing(4)
+        tbl=QHBoxLayout(tb); tbl.setContentsMargins(7,4,7,4); tbl.setSpacing(4)
         self._radix_buttons={}; rf=QFrame()
         rf.setStyleSheet(f"QFrame{{background:{C['tb_bg']};border-radius:10px;border:1px solid {C['tb_bdr']};}}")
         rl=QHBoxLayout(rf); rl.setContentsMargins(3,3,3,3); rl.setSpacing(0)
@@ -1024,7 +1090,7 @@ class BitForge(QMainWindow):
                      f"font-weight:600;'>&nbsp;{t}&nbsp;</span>")
         plain=lambda t:f"<span style='color:{C['hint']}'>{t}</span>"
         rows=[("0-9  A-F","数字输入"),("+ - * / % & | ^ ~","运算"),("<<  >>","移位 (Shift+< / >)"),
-              ("Enter  =","求值"),("Esc / Del","清空"),("Ctrl+C / Ctrl+V","复制 / 粘贴"),
+              ("Enter  =","求值"),("Esc / Del","清空"),("Ctrl+Z / Ctrl+Y","撤销 / 重做"),("Ctrl+C / Ctrl+V","复制 / 粘贴"),
               ("Shift+拖拽 bit","选择位域"),("Tab / Shift+Tab","循环进制"),("F1","帮助"),("F2","表达式")]
         for k,d in rows:
             row=QLabel(f"{kb(k)}  {plain(d)}")
@@ -1047,9 +1113,10 @@ class BitForge(QMainWindow):
         if compact:
             return (kb("F1")+plain(" 帮助 ")+sep+
                     kb("F2")+plain(" 表达式 ")+sep+
-                    kb("Ctrl+C/V"))
+                    kb("Ctrl+Z/Y"))
         return (kb("F1")+plain(" 帮助 ")+sep+
                 kb("F2")+plain(" 表达式 ")+sep+
+                kb("Ctrl+Z/Y")+plain(" 撤销/重做 ")+sep+
                 kb("Ctrl+C")+plain(" 复制 ")+sep+
                 kb("Ctrl+V")+plain(" 粘贴 ")+sep+
                 plain("Enter 求值 · Esc 清空"))
@@ -1079,7 +1146,7 @@ class BitForge(QMainWindow):
         compact=self.width()<620
         if compact!=getattr(self,"_compact_layout",None):
             self._compact_layout=compact
-            self._root_layout.setContentsMargins(12 if compact else 18,10,12 if compact else 18,14)
+            self._root_layout.setContentsMargins(10 if compact else 14,8,10 if compact else 14,12)
             self._tools_btn.setText("⋯" if compact else "工具")
             self._tools_btn.setFixedWidth(28 if compact else 38)
             self._mask_le.setFixedWidth(118 if compact else 154)
@@ -1284,6 +1351,7 @@ class BitForge(QMainWindow):
         for ch,btn in self._digit_btns.items(): btn.set_dimmed(ch not in valid)
 
     def _toggle_sign(self):
+        self._record_undo()
         self._signed=not self._signed
         self._sign_btn.setChecked(self._signed)
         self._sign_btn.setStyleSheet(self._sign_style(self._signed))
@@ -1291,6 +1359,7 @@ class BitForge(QMainWindow):
         self._toast("有符号" if self._signed else "无符号")
 
     def _toggle_lock(self):
+        self._record_undo()
         self._locked=self._lock_btn.isChecked()
         self._lock_btn.setToolTip("位宽已锁定" if self._locked else "锁定当前位宽")
         self._lock_btn.setStyleSheet(self._lock_btn_style(self._locked))
@@ -1301,16 +1370,12 @@ class BitForge(QMainWindow):
     def _step_bw_up(self):
         for b in (16,32,64):
             if self._bit_width<b:
-                self._bit_width=b; self._locked=True; self._lock_btn.setChecked(True)
-                self._lock_btn.setToolTip("位宽已锁定")
-                self._refresh_display(); self._toast(f"位宽 {b}b"); return
+                self._set_bit_width(b); return
 
     def _step_bw_dn(self):
         for b in (32,16,8):
             if self._bit_width>b:
-                self._bit_width=b; self._locked=True; self._lock_btn.setChecked(True)
-                self._lock_btn.setToolTip("位宽已锁定")
-                self._refresh_display(); self._toast(f"位宽 {b}b"); return
+                self._set_bit_width(b); return
 
     def _show_bit_width_menu(self):
         m=self._menu()
@@ -1323,6 +1388,7 @@ class BitForge(QMainWindow):
         if b not in BIT_MASKS:
             dlog("bit width rejected:", b)
             return
+        self._record_undo()
         self._bit_width=b; self._locked=True
         self._lock_btn.setChecked(True); self._lock_btn.setToolTip("位宽已锁定")
         self._value_anim.stop(); self._ani_running=False; self._ani_last=""
@@ -1433,6 +1499,7 @@ class BitForge(QMainWindow):
             self._flash_expr_bar(C["dsp_neg"])
             dlog("expression failed:", text, exc)
             return
+        self._record_undo()
         if self._error: self._error=False
         self._value=self._fit_value(value, signed_64=True); self._entry=self._format_entry(self._value)
         self._new_entry=True; self._pending=None; self._last_op=None
@@ -1466,8 +1533,9 @@ class BitForge(QMainWindow):
             self._expression_history=[]
             self._toast("表达式历史已清除","success")
 
-    def _load_value(self,v):
-        if self._error: self._clear_all()
+    def _load_value(self,v,record_undo=True):
+        if record_undo: self._record_undo()
+        if self._error: self._clear_all(record_undo=False)
         self._value=self._fit_value(v)
         self._entry=self._format_entry(self._value)
         self._new_entry=False
@@ -1624,6 +1692,7 @@ class BitForge(QMainWindow):
         dlog("mask favorite", hex(value), "count", len(self._mask_favorites))
 
     def _apply_tool_value(self,value,label):
+        self._record_undo()
         if self._error: self._error=False
         self._value=clamp(value,64); self._locked=True; self._new_entry=True
         self._entry=self._format_entry(self._value); self._pending=None; self._last_op=None
@@ -1671,6 +1740,7 @@ class BitForge(QMainWindow):
 
     def _rad(self,r):
         if self._radix==r or self._error: return
+        self._record_undo()
         self._radix=r; self._new_entry=False; self._entry=self._format_entry(self._value); self._refresh_radix_buttons(); self._refresh_display()
 
     def _input_digit(self,d):
@@ -1694,12 +1764,14 @@ class BitForge(QMainWindow):
         if value>BIT_MASKS[bits]:
             self._toast(f"超出当前 {bits} 位范围")
             dlog("input overflow:", candidate, "bits:", bits); return
+        self._record_undo()
         if self._new_entry:
             self._new_entry=False; self._set_active_op(None)
         self._entry=candidate; self._value=value
         self._refresh_display()
 
-    def _clear_all(self):
+    def _clear_all(self,record_undo=True):
+        if record_undo: self._record_undo()
         self._value=0; self._entry="0"; self._pending=None; self._new_entry=True; self._bit_width=8; self._locked=False; self._lock_btn.setChecked(False); self._error=False; self._value_anim.stop(); self._ani_running=False; self._ani_last=""; self._last_op=None
         self._set_active_op(None)
         self._bit_indicator.clear_selection()
@@ -1708,6 +1780,7 @@ class BitForge(QMainWindow):
     def _backspace(self):
         if self._error: self._clear_all(); return
         if self._new_entry: return
+        self._record_undo()
         if len(self._entry)<=1: self._entry="0"; self._new_entry=True
         else: self._entry=self._entry[:-1]
         try: v=int(self._entry,self._radix) if self._entry else 0; self._value=clamp(v,64)
@@ -1719,6 +1792,7 @@ class BitForge(QMainWindow):
 
     def _apply_operator(self,op):
         if self._error: self._clear_all(); return
+        self._record_undo()
         if op=="not":
             # 待定运算存在时 NOT 作用于等待中的操作数, 保留待定关系
             if self._pending is not None and self._new_entry:
@@ -1742,6 +1816,7 @@ class BitForge(QMainWindow):
 
     def _equals(self):
         if self._error: return
+        if self._pending is not None or self._last_op is not None: self._record_undo()
         if self._pending is not None:
             self._last_op={"op":self._pending["op"],"rhs":self._value,
                            "bits":self._pending.get("bits",self._bit_width),"locked":self._pending.get("locked",self._locked),
@@ -1793,12 +1868,14 @@ class BitForge(QMainWindow):
             if r==0: raise ZeroDivisionError()
             if not signed: return l//r
             left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
+            if right==0: raise ZeroDivisionError()
             dlog("signed compute", op, left, right, "bits", b)
             return (abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
         if op=="mod":
             if r==0: raise ZeroDivisionError()
             if not signed: return l%r
             left,right=to_signed(clamp(l,b),b),to_signed(clamp(r,b),b)
+            if right==0: raise ZeroDivisionError()
             quotient=(abs(left)//abs(right))*(-1 if (left<0) != (right<0) else 1)
             dlog("signed compute", op, left, right, "bits", b)
             return left-quotient*right
@@ -1806,8 +1883,10 @@ class BitForge(QMainWindow):
         if op=="or":  return l|r
         if op=="xor": return l^r
         if op=="lsh":
-            return 0 if r>=64 else l<<r   # r 超出 64 位空间一律为 0, 防止无界分配
+            if r<0: raise ValueError("移位数不能为负")
+            return 0 if r>=64 else l<<r   # 自动位宽允许结果扩展到 64 bit
         if op=="rsh":
+            if r<0: raise ValueError("移位数不能为负")
             if r>=b: return -1 if signed and to_signed(clamp(l,b),b)<0 else 0
             if signed:
                 left=to_signed(clamp(l,b),b)
@@ -1973,6 +2052,7 @@ class BitForge(QMainWindow):
             self._chip_last=None; self._rgb_chip.hide()
 
     def _on_bit_click(self,v):
+        self._record_undo()
         if self._error: self._error=False
         self._value=clamp(v,64); self._entry=self._format_entry(self._value); self._pending=None
         self._set_active_op(None)
@@ -2039,6 +2119,11 @@ class BitForge(QMainWindow):
     # ===== 键盘 =====
     def keyPressEvent(self,e:QKeyEvent):
         k,tx=e.key(),e.text()
+        if k==Qt.Key_Z and e.modifiers() & Qt.ControlModifier:
+            if e.modifiers() & Qt.ShiftModifier: self._redo()
+            else: self._undo()
+            return
+        if k==Qt.Key_Y and e.modifiers() & Qt.ControlModifier: self._redo(); return
         if k==Qt.Key_C and e.modifiers() & Qt.ControlModifier: self._copy_current(); return
         if k==Qt.Key_V and e.modifiers() & Qt.ControlModifier: self._paste(); return
         if tx=="?": self._toggle_shortcut_overlay(); return   # 需先于 "/" 运算映射
