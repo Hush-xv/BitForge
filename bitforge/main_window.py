@@ -984,7 +984,7 @@ class BitForge(QMainWindow):
         m.setStyleSheet(self._menu().styleSheet())
         if self._expression_history:
             m.addSeparator()
-            actions=[m.addAction(f"最近：{text}") for text in self._expression_history]
+            actions=[m.addAction(f"最近：{ellipsize(text,40)}") for text in self._expression_history]
             a_clear=m.addAction("清除表达式历史")
         else:
             actions=[]; a_clear=None
@@ -1032,7 +1032,7 @@ class BitForge(QMainWindow):
             m.addSeparator()
             head=m.addAction("最近表达式")
             head.setEnabled(False)
-            expr_actions=[m.addAction(f"EXPR · {text}") for text in self._expression_history]
+            expr_actions=[m.addAction(f"EXPR · {ellipsize(text,40)}") for text in self._expression_history]
         m.addSeparator()
         a_clr=m.addAction("清空历史")
         act=m.exec_(self._hist_btn.mapToGlobal(self._hist_btn.rect().bottomLeft()))
@@ -1066,9 +1066,11 @@ class BitForge(QMainWindow):
         m.addSeparator()
         a_extract=m.addAction("提取位域…")
         a_write=m.addAction("写入位域…")
-        sign_menu=m.addMenu("符号扩展")
-        sign_actions={b:sign_menu.addAction(f"从 {b} bit 扩展")
-                      for b in (8,16,32) if b<self._bit_width}
+        sign_actions={}
+        if self._bit_width > 8:
+            sign_menu=m.addMenu("符号扩展")   # 8 bit 无更窄来源, 不显示空子菜单
+            sign_actions={b:sign_menu.addAction(f"从 {b} bit 扩展")
+                          for b in (8,16,32) if b<self._bit_width}
         m.addSeparator()
         format_menu=m.addMenu("格式与 Mask")
         a_pad=format_menu.addAction("HEX / BIN 补齐到位宽")
