@@ -10,9 +10,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from bitforge.core import (BIT_MASKS, byte_swap, clamp, dec_group, evaluate_expression,
-                           extract_field, parse_number, rotate_left, rotate_right,
-                           to_signed, write_field)
+from bitforge.core import (BIT_MASKS, byte_swap, clamp, dec_group, ellipsize,
+                           evaluate_expression, extract_field, parse_number,
+                           rotate_left, rotate_right, to_signed, write_field)
 from bitforge.state import CalculatorState, compute
 
 passed = 0; failed = 0
@@ -103,6 +103,9 @@ check("dec_group basic", dec_group("1234567") == "1,234,567")
 check("dec_group negative", dec_group("-1234567") == "-1,234,567")
 check("dec_group short stays flat", dec_group("12") == "12")
 check("dec_group non-digit passthrough", dec_group("0x1F") == "0x1F")
+check("ellipsize short passthrough", ellipsize("12345") == "12345")
+check("ellipsize long truncates", ellipsize("x"*30) == "x"*24 + "…")
+check("ellipsize custom width", ellipsize("abcdef", 4) == "abcd…")
 
 # ======== 4. compute 纯函数 ========
 print("=== 4. compute() ===")

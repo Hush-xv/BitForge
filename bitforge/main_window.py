@@ -47,6 +47,9 @@ class BitForge(QMainWindow):
         self._set_style()
         self._toast_timer=QTimer(self); self._toast_timer.setSingleShot(True)
         self._toast_timer.timeout.connect(self._toast_fade_out)
+        self._expr_flash_timer=QTimer(self); self._expr_flash_timer.setSingleShot(True)
+        self._expr_flash_timer.timeout.connect(
+            lambda: self._expr_bar.setStyleSheet(self._expr_bar_neutral_style()))
         self._value_anim=QVariantAnimation(self)
         self._value_anim.setDuration(120)
         self._value_anim.setEasingCurve(QEasingCurve.OutCubic)
@@ -361,7 +364,7 @@ class BitForge(QMainWindow):
 
         # 独立表达式栏：不改变传统按键计算状态
         expr_bar=QFrame(); expr_bar.setObjectName("expressionBar"); self._expr_bar=expr_bar
-        expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}")
+        expr_bar.setStyleSheet(self._expr_bar_neutral_style())
         expr_l=QHBoxLayout(expr_bar); expr_l.setContentsMargins(10,4,6,4); expr_l.setSpacing(7)
         expr_tag=QLabel("EXPR"); expr_tag.setStyleSheet(f"color:{C['rad_on']};font-size:10px;font-weight:700;letter-spacing:0.8px;")
         self._expression_input=QLineEdit(self)
@@ -773,16 +776,16 @@ class BitForge(QMainWindow):
         except Exception: f=QFont("Segoe UI",s); f.setHintingPreference(QFont.PreferNoHinting); return f
 
     def _radix_btn_style(self,on,first=False,last=False):
-        """连通式分段: 仅首末段保留外侧圆角, 中段直角相连。"""
+        """连通式分段: 仅首末段保留外侧圆角, 中段直角相连; 常态透明边框避免聚焦时几何抖动。"""
         tl="7px" if first else "0px"; br="7px" if last else "0px"
         corners=(f"border-top-left-radius:{tl};border-bottom-left-radius:{tl};"
                  f"border-top-right-radius:{br};border-bottom-right-radius:{br};")
-        if on: return (f"QPushButton{{background:{C['rad_on']};color:{C['eq_fg']};border:none;{corners}"
-                       f"font-weight:600;}}"
+        if on: return (f"QPushButton{{background:{C['rad_on']};color:{C['eq_fg']};"
+                       f"border:1px solid transparent;{corners}font-weight:600;}}"
                        f"QPushButton:hover{{background:{C['rad_on']};}}"
                        f"QPushButton:focus{{border:1px solid {C['op_active']};}}")
-        return (f"QPushButton{{background:transparent;color:{C['rad_off']};border:none;{corners}"
-                f"font-weight:600;}}"
+        return (f"QPushButton{{background:transparent;color:{C['rad_off']};"
+                f"border:1px solid transparent;{corners}font-weight:600;}}"
                 f"QPushButton:hover{{color:{C['title']};}}"
                 f"QPushButton:focus{{border:1px solid {C['rad_on']};}}")
 
@@ -940,11 +943,14 @@ class BitForge(QMainWindow):
         self._toast(f"已粘贴 {ellipsize(text)}"+(" · 已截断" if truncated else ""),"warning" if truncated else "success")
         dlog("paste", text, "->", hex(self._value))
 
+    def _expr_bar_neutral_style(self):
+        return (f"QFrame#expressionBar{{background:{C['aux_bg']};"
+                f"border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}")
+
     def _flash_expr_bar(self,color):
-        """表达式栏边框短暂着色: 绿=成功, 红=出错。"""
+        """表达式栏边框短暂着色: 绿=成功, 红=出错; 复用单发定时器避免闪烁互相掐断。"""
         self._expr_bar.setStyleSheet(f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {color};border-radius:{RD['m']}px;}}")
-        QTimer.singleShot(900, lambda: self._expr_bar.setStyleSheet(
-            f"QFrame#expressionBar{{background:{C['aux_bg']};border:1px solid {C['tb_bdr']};border-radius:{RD['m']}px;}}"))
+        self._expr_flash_timer.start(900)
 
     def _evaluate_expression(self):
         text=self._expression_input.text().strip()
