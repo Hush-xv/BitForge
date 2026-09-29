@@ -1199,12 +1199,22 @@ class BitForge(QMainWindow):
                 preview.setText(f"当前值 bit {start.value()+width.value()-1}:{start.value()} = 0x{v:X} · {v}")
             except ValueError:
                 preview.setText("位域范围无效")
+        def try_accept():
+            # 写入模式门前校验: 无效值留在对话框内修正, 不关门后报错
+            if mode_box.currentText()=="写入位域":
+                text=value_edit.text().strip()
+                if not text:
+                    self._toast("写入值不能为空","warning"); return
+                try: parse_number(text)
+                except ValueError:
+                    self._toast("位域值格式无效","warning"); return
+            d.accept()
         start.valueChanged.connect(sync_preview)
         width.valueChanged.connect(sync_preview)
         mode_box.currentTextChanged.connect(lambda _: sync_preview())
         sync_preview()
         buttons=QHBoxLayout()
-        ok=QPushButton("应用"); ok.setFixedHeight(30); ok.setDefault(True); ok.clicked.connect(d.accept)
+        ok=QPushButton("应用"); ok.setFixedHeight(30); ok.setDefault(True); ok.clicked.connect(try_accept)
         cancel=QPushButton("取消"); cancel.setFixedHeight(30); cancel.clicked.connect(d.reject)
         buttons.addStretch(1); buttons.addWidget(cancel); buttons.addWidget(ok)
         form.addRow("起始位 (LSB=0)",start); form.addRow("宽度",width)

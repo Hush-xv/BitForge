@@ -117,10 +117,12 @@ cd PyQt-SiliconUI && python setup.py install
 | `Enter` / `=` | Evaluate |
 | `Backspace` | Delete last digit |
 | `Esc` / `Delete` | Clear all (AC) |
+| `Tab` / `Shift+Tab` | Cycle radix HEX → DEC → OCT → BIN |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo (session-only) |
 | `Ctrl+C` | Copy current display value |
 | `Ctrl+V` | Paste value (`0x`/`0b`/`0o`/`xxh`/decimal auto-detected) |
 | `F1` | Open the quick help dialog |
-| `F2` | Focus the expression input |
+| `F2` | Focus the expression input (selects existing text) |
 
 ---
 
