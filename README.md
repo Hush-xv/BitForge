@@ -83,6 +83,8 @@
 
 ```bash
 python bitforge.py
+# or / 或
+python -m bitforge
 ```
 
 Or double-click `run.bat` on Windows.
