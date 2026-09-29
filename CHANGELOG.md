@@ -1,3 +1,10 @@
+## v1.14.5 — Redundant action dedup
+
+- Pressing the same operator twice no longer records a dead undo step: the operator-replace branch records only when the pending operation actually changes (undo previously needed one extra press to undo the identical re-press).
+- Undo records in `apply_operator` moved from the method top into each mutating branch (NOT invert / operator replace / new pending), so every snapshot precedes exactly the change it undoes.
+- Re-selecting the already-locked bit width from the menu is now a no-op: no toast, no undo snapshot (`set_bit_width`); selecting the current width while unlocked still locks it.
+- New coverage: same-operator repeat, operator switch undo, same-width preset dedup (`test_core` §6/§7).
+
 ## v1.14.4 — Theme switch focus & highlight
 
 - Rebuilding the UI on theme change no longer drops the pending-operator highlight: after `_build_ui`, the active operator key is re-lit from `state.active_op` (same family as the v1.13.0 ± fix — the "12 +" highlight used to vanish after switching themes).

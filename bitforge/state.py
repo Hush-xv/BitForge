@@ -173,15 +173,16 @@ class CalculatorState:
 
     def apply_operator(self, op):
         if self.error: self.clear_all(); return
-        self.record_undo()
         if op == "not":
             # 待定运算存在时 NOT 作用于等待中的操作数, 保留待定关系
             if self.pending is not None and self.new_entry:
                 bits = self.pending.get("bits", self.bit_width)   # 与随后的 = 使用同一位宽
+                self.record_undo()
                 self.pending["lhs"] = clamp(~self.pending["lhs"], bits)
                 self.value = self.pending["lhs"]
                 self.sync_autowidth()
                 return
+            self.record_undo()
             bits = self.bit_width if self.locked else 64
             self.value = clamp(~self.value, bits); self.entry = self.format_entry(self.value)
             self.new_entry = True; self.pending = None
@@ -189,9 +190,15 @@ class CalculatorState:
             return
         # 尚未输入第二个操作数 → 替换运算符, 不提前计算
         if self.pending is not None and self.new_entry:
-            self.pending = {"op": op, "lhs": self.pending["lhs"], "bits": self.bit_width,
-                            "locked": self.locked, "signed": self.signed}
+            new_pending = {"op": op, "lhs": self.pending["lhs"], "bits": self.bit_width,
+                           "locked": self.locked, "signed": self.signed}
+            if new_pending != self.pending:
+                self.record_undo()
+            else:
+                dlog("operator unchanged:", op)   # 同运算符重复点击: 状态不变, 不产生无效撤销
+            self.pending = new_pending
             return
+        self.record_undo()
         if self.pending is not None: self.evaluate()
         self.pending = {"op": op, "lhs": self.value, "bits": self.bit_width,
                         "locked": self.locked, "signed": self.signed}; self.new_entry = True
@@ -256,6 +263,9 @@ class CalculatorState:
     def set_bit_width(self, b) -> bool:
         if b not in BIT_MASKS:
             dlog("bit width rejected:", b)
+            return False
+        if b == self.bit_width and self.locked:
+            dlog("bit width unchanged:", b)   # 已锁定同宽: 无操作, 不记撤销不弹提示
             return False
         self.record_undo()
         self.bit_width = b; self.locked = True

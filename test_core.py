@@ -195,8 +195,15 @@ check("repeat equals 2", s.value == 144*144, str(s.value))
 # 输入第二操作数后 active_op 熄灭
 s=fresh()
 s.value=12; s.entry="12"
-s.apply_operator("add")
+s.apply_operator("add"); n=len(s._undo_stack)
 check("active_op on new pending", s.active_op == "add", str(s.active_op))
+s.apply_operator("add")
+check("same operator repeat records no undo", len(s._undo_stack) == n, f"{n}->{len(s._undo_stack)}")
+check("same operator keeps pending", s.pending["op"] == "add" and s.active_op == "add")
+s.apply_operator("mul")
+check("operator switch records undo", len(s._undo_stack) == n + 1 and s.pending["op"] == "mul")
+s.undo()
+check("undo after switch restores add", s.pending is not None and s.pending["op"] == "add")
 s.input_digit("5")
 check("active_op cleared by digit", s.active_op is None, str(s.active_op))
 
@@ -273,6 +280,11 @@ check("set_bit_width locks", s.set_bit_width(8) and s.bit_width == 8 and s.locke
 check("set_bit_width clamps entry", s.entry == "FF", s.entry)
 check("set_bit_width expands", s.set_bit_width(32) and s.entry == "1FF", s.entry)
 check("invalid bit-width ignored", not s.set_bit_width(12) and s.bit_width == 32, str(s.bit_width))
+n_undo=len(s._undo_stack)
+check("same-width preset is a no-op", not s.set_bit_width(32) and s.locked)
+check("same-width preset records no undo", len(s._undo_stack) == n_undo, f"{n_undo}->{len(s._undo_stack)}")
+s.locked=False
+check("same-width while unlocked still locks", s.set_bit_width(32) and s.locked)
 
 s=fresh()
 check("load_value fits and clears pending", s.load_value(0xDEAD) is False and s.value == 0xDEAD
