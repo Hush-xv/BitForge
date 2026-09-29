@@ -523,7 +523,7 @@ class BitForge(QMainWindow):
         plain=lambda t:f"<span style='color:{C['hint']}'>{t}</span>"
         rows=[("0-9  A-F","数字输入"),("+ - * / % & | ^ ~","运算"),("<<  >>","移位 (Shift+< / >)"),
               ("Enter  =","求值"),("Esc / Del","清空"),("Ctrl+Z / Ctrl+Y","撤销 / 重做"),("Ctrl+C / Ctrl+V","复制 / 粘贴"),
-              ("Shift+拖拽 bit","选择位域"),("Tab / Shift+Tab","循环进制"),("F1","帮助"),("F2","表达式")]
+              ("左键 / 右键 bit","位图翻转 / 清零"),("Shift+拖拽 bit","选择位域"),("Tab / Shift+Tab","循环进制"),("F1","帮助"),("F2","表达式")]
         for k,d in rows:
             row=QLabel(f"{kb(k)}  {plain(d)}")
             row.setTextFormat(Qt.RichText)

@@ -351,6 +351,31 @@ class BitGlow(QWidget):
             self._rebuild()
         p=QPainter(self); p.drawPixmap(0,0,self._cache)
 
+    def _draw_cell(self,p,r,txt,bit_idx,on):
+        """绘制单个位格: 光晕/底色、Mask 框、位域选区、翻转闪烁 — 两种布局共用。"""
+        if on:
+            # 外层光晕 (纯色半透明, 内收不越位号区)
+            glow=QColor(C["bit_on"]); glow.setAlpha(30); p.setBrush(glow); p.setPen(Qt.NoPen)
+            p.drawRoundedRect(r.adjusted(-1,-1,1,1),3,3)
+            p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
+            p.drawRoundedRect(r,3,3)
+            p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
+        else:
+            p.setBrush(QColor(C["aux_bg"])); p.setPen(Qt.NoPen)
+            p.drawRoundedRect(r,3,3)
+            p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
+        if self._mask and (self._mask>>bit_idx)&1:
+            p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(r,3,3)
+        if self._sel and self._sel[0]<=bit_idx<=self._sel[1]:
+            sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
+            p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
+            p.drawRoundedRect(r,3,3)
+        if bit_idx in self._flash:
+            fl=QColor("#FFFFFF"); fl.setAlpha(30*self._flash[bit_idx]//6)
+            p.setBrush(fl); p.setPen(Qt.NoPen)
+            p.drawRoundedRect(r,3,3)
+
     def _rebuild(self):
         w=max(self.width(),1); h=self.height()
         self._cache=QPixmap(w,h); self._cache.fill(Qt.transparent)
@@ -371,28 +396,7 @@ class BitGlow(QWidget):
                 for g in gs:
                     for ch in g:
                         r=QRectF(x,y_off+10,bw,bh); txt=f"{bit_idx:>2d}"
-                        if ch=="1":
-                            # 外层光晕 (纯色半透明, 内收不越位号区)
-                            glow=QColor(C["bit_on"]); glow.setAlpha(30); p.setBrush(glow); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r.adjusted(-1,-1,1,1),3,3)
-                            p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r,3,3)
-                            p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
-                        else:
-                            p.setBrush(QColor(C["aux_bg"])); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r,3,3)
-                            p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
-                        if self._mask and (self._mask>>bit_idx)&1:
-                            p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
-                            p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
-                        if self._sel and self._sel[0]<=bit_idx<=self._sel[1]:
-                            sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
-                            p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
-                            p.drawRoundedRect(r,3,3)
-                        if bit_idx in self._flash:
-                            fl=QColor("#FFFFFF"); fl.setAlpha(30*self._flash[bit_idx]//6)
-                            p.setBrush(fl); p.setPen(Qt.NoPen)
-                            p.drawRoundedRect(r,3,3)
+                        self._draw_cell(p,r,txt,bit_idx,ch=="1")
                         x+=bw+gap; bit_idx-=1
                     x+=ggap-gap
             # 分隔线 + 位范围标注 (置于分隔线下方空隙)
@@ -412,28 +416,7 @@ class BitGlow(QWidget):
             for g in gs:
                 for ch in g:
                     txt=f"{bit_idx:>2d}"; r=QRectF(x,y+2,bw,28)
-                    if ch=="1":
-                        # 外层光晕 (纯色半透明, 内收不越位号区)
-                        glow=QColor(C["bit_on"]); glow.setAlpha(30); p.setBrush(glow); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r.adjusted(-1,-1,1,1),3,3)
-                        p.setBrush(QColor(C["bit_on"])); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r,3,3)
-                        p.setPen(QColor(C["bit_on_fg"])); p.drawText(r,Qt.AlignCenter,txt)
-                    else:
-                        p.setBrush(QColor(C["aux_bg"])); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r,3,3)
-                        p.setPen(QColor(C["bit_off"])); p.drawText(r,Qt.AlignCenter,txt)
-                    if self._mask and (self._mask>>bit_idx)&1:
-                        p.setPen(QColor(C["warning"])); p.setBrush(Qt.NoBrush)
-                        p.drawRoundedRect(r.adjusted(0,0,0,0),3,3)
-                    if self._sel and self._sel[0]<=bit_idx<=self._sel[1]:
-                        sel_fill=QColor(C["op_active"]); sel_fill.setAlpha(46)
-                        p.setBrush(sel_fill); p.setPen(QColor(C["op_active"]))
-                        p.drawRoundedRect(r,3,3)
-                    if bit_idx in self._flash:
-                        fl=QColor("#FFFFFF"); fl.setAlpha(30*self._flash[bit_idx]//6)
-                        p.setBrush(fl); p.setPen(Qt.NoPen)
-                        p.drawRoundedRect(r,3,3)
+                    self._draw_cell(p,r,txt,bit_idx,ch=="1")
                     x+=bw+gap; bit_idx-=1
                 x+=ggap-gap
         p.setFont(self._font); p.end(); self._dirty=False
