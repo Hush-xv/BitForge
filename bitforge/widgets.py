@@ -242,6 +242,16 @@ class BitGlow(QWidget):
         if self._mask==m: return
         self._mask=m; self._dirty=True; self.update()
 
+    @property
+    def mask(self):
+        """当前掩码 (只读视图, 供主窗口读取)。"""
+        return self._mask
+
+    @property
+    def selection(self):
+        """当前位域选择 (lo,hi) 或 None (只读视图)。"""
+        return self._sel
+
     def resizeEvent(self,e):
         self._dirty=True; super().resizeEvent(e)
 

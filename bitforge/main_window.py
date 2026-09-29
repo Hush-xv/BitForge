@@ -1162,7 +1162,7 @@ class BitForge(QMainWindow):
         dlog("mask preset", hex(clamp(value,64)))
 
     def _remember_mask_favorite(self):
-        value=self._bit_indicator._mask
+        value=self._bit_indicator.mask
         if not value:
             self._toast("请先输入非零 Mask","warning"); return
         if value in self._mask_favorites: self._mask_favorites.remove(value)
@@ -1391,10 +1391,11 @@ class BitForge(QMainWindow):
             self._expr_last=m.expr
             self._expr_label.setText(m.expr)
         # 位域选择标签 — 值随当前数值实时更新
-        if self._bit_indicator._sel is not None:
-            v=(self._value>>self._bit_indicator._sel[0])&((1<<(self._bit_indicator._sel[1]-self._bit_indicator._sel[0]+1))-1)
+        sel=self._bit_indicator.selection
+        if sel is not None:
+            lo,hi=sel
+            v=(self._value>>lo)&((1<<(hi-lo+1))-1)
             if v!=self._sel_value:
-                lo,hi=self._bit_indicator._sel
                 self._set_selection_label(lo,hi,v)
         # RGB 色板 — 仅 HEX 模式, 取低 24 位
         if m.rgb is not None:
