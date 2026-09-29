@@ -1175,9 +1175,12 @@ check("theme switch restores pending op highlight", w._op_btns["add"]._active,
       str({k: b._active for k, b in w._op_btns.items()}))
 
 w._expression_input.setFocus(); app.processEvents()
+w._expression_input.setCursorPosition(4)   # "0x10 * 2" 的 "1" 前
 w._set_theme("light"); app.processEvents()
 check("theme switch keeps expression focus", QApplication.focusWidget() is w._expression_input,
       str(QApplication.focusWidget()))
+check("theme switch keeps caret position", w._expression_input.cursorPosition() == 4,
+      str(w._expression_input.cursorPosition()))
 w._mask_le.setFocus(); app.processEvents()
 w._set_theme("dark"); app.processEvents()
 check("theme switch keeps mask focus", QApplication.focusWidget() is w._mask_le,
