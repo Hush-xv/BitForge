@@ -20,6 +20,10 @@ RADIX_DIGITS = {16: "0123456789ABCDEF", 10: "0123456789", 8: "01234567", 2: "01"
 OP_SYMBOLS = {"add": "+", "sub": "\u2212", "mul": "\u00d7", "div": "\u00f7", "mod": "%",
               "and": "AND", "or": "OR", "xor": "XOR", "lsh": "<<", "rsh": ">>",
               "rol": "ROL", "ror": "ROR"}
+def ellipsize(s, n=24):
+    """长文本截断 (错误消息/Toast/菜单项用), 超长以省略号收尾。"""
+    return s if len(s) <= n else s[:n] + "…"
+
 def clamp(v, b): return v & BIT_MASKS[b]
 def to_signed(v, b):
     u = clamp(v, b)
@@ -56,7 +60,8 @@ def evaluate_expression(text, b=64, signed=False):
     while pos<len(text):
         m=_EXPR_TOKEN.match(text,pos)
         if not m:
-            if text[pos:].strip(): raise ValueError(f"无法识别：{text[pos:]}")
+            if text[pos:].strip():
+                raise ValueError(f"无法识别：{ellipsize(text[pos:].strip())}")
             break
         token=m.group(1); tokens.append(token.upper() if token.isalpha() else token); pos=m.end()
     if not tokens: raise ValueError("请输入表达式")
@@ -124,7 +129,7 @@ def evaluate_expression(text, b=64, signed=False):
         try:
             return clamp(int(token,0) if token.lower().startswith(("0x","0b","0o")) else int(token,10),b)
         except ValueError:
-            raise ValueError(f"期望数值，得到 {token}")
+            raise ValueError(f"期望数值，得到 {ellipsize(token)}")
 
     def parse_expression(min_precedence):
         nonlocal index
@@ -138,7 +143,7 @@ def evaluate_expression(text, b=64, signed=False):
         return left
 
     value=parse_expression(1)
-    if index!=len(tokens): raise ValueError(f"意外标记：{tokens[index]}")
+    if index!=len(tokens): raise ValueError(f"意外标记：{ellipsize(tokens[index])}")
     return value
 
 def parse_number(text):

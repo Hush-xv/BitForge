@@ -1188,6 +1188,39 @@ check("theme switch keeps mask focus", QApplication.focusWidget() is w._mask_le,
 w._set_theme("light"); app.processEvents()
 w._clear_all()
 
+# ======== 44. 长文本截断: Toast / 历史 / 错误消息 ========
+print("=== 44. Long-text elision ===")
+
+w._toast_timer.stop(); w._toast_lb.hide()
+w._clear_all()
+QApplication.clipboard().setText("1234567890123456789012345678901234567890")
+w._paste()
+check("paste toast elides long text", "…" in w._toast_lb.text() and len(w._toast_lb.text()) < 40,
+      w._toast_lb.text())
+w._toast_timer.stop(); w._toast_lb.hide()
+
+w._clear_all(); w._rad(2); w._locked=True; w._bit_width=64
+w._value=BIT_MASKS[64]; w._refresh_display()
+w._copy_current()
+check("copy toast elides long value", "…" in w._toast_lb.text(), w._toast_lb.text())
+check("clipboard keeps full value", QApplication.clipboard().text() == bin(BIT_MASKS[64]),
+      QApplication.clipboard().text()[:30])
+w._toast_timer.stop(); w._toast_lb.hide()
+
+check("history label elides long source",
+      "…" in w._history_entry_label({"v": 1, "src": "x"*80}) and
+      w._history_entry_label({"v": 1, "src": "短"}) == "短  →  0x1    1    8 bit",
+      w._history_entry_label({"v": 1, "src": "x"*80}))
+w._clear_all()
+
+w._toast_timer.stop(); w._toast_lb.hide()
+w._expression_input.setText("1 + 2 " + "9"*60)
+w._evaluate_expression()
+check("expression error message capped", "表达式错误" in w._toast_lb.text()
+      and len(w._toast_lb.text()) < 60, w._toast_lb.text())
+w._toast_timer.stop(); w._toast_lb.hide()
+w._clear_all()
+
 print()
 print(f"TOTAL: {passed} passed, {failed} failed")
 if failed > 0:

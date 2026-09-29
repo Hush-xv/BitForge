@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QSpinBox, QVBoxLayout, QWidget,
 )
 
-from .core import (BIT_MASKS, RADIX_DIGITS, byte_swap, clamp, dlog,
+from .core import (BIT_MASKS, RADIX_DIGITS, byte_swap, clamp, dlog, ellipsize,
                    evaluate_expression, extract_field, parse_number, rotate_left,
                    rotate_right, to_signed, write_field)
 from .render import (aux_text, compute_display_model, display_groups, font_size_for,
@@ -752,12 +752,12 @@ class BitForge(QMainWindow):
             return
         m=self._menu()
         cur=self._display_value
-        a_cur=m.addAction(f"复制  {cur}")
+        a_cur=m.addAction(f"复制  {ellipsize(cur)}")
         m.addSeparator()
-        a_hex=m.addAction(f"HEX   {self._aux_value('HEX')}")
-        a_dec=m.addAction(f"DEC   {self._aux_value('DEC')}")
-        a_oct=m.addAction(f"OCT   {self._aux_value('OCT')}")
-        a_bin=m.addAction(f"BIN   {self._aux_value('BIN')}")
+        a_hex=m.addAction(f"HEX   {ellipsize(self._aux_value('HEX'))}")
+        a_dec=m.addAction(f"DEC   {ellipsize(self._aux_value('DEC'))}")
+        a_oct=m.addAction(f"OCT   {ellipsize(self._aux_value('OCT'))}")
+        a_bin=m.addAction(f"BIN   {ellipsize(self._aux_value('BIN'))}")
         act=m.exec_(self._display.mapToGlobal(pos))
         if act is None: return
         if act==a_cur: self._copy_text(cur,"当前值")
@@ -897,8 +897,8 @@ class BitForge(QMainWindow):
 
     # ===== 复制 / 粘贴 / 历史 =====
     def _copy_text(self,text,label):
-        QApplication.clipboard().setText(text)
-        self._toast(f"已复制 {label} {text}","success")
+        QApplication.clipboard().setText(text)   # 剪贴板保持完整, Toast 截断展示
+        self._toast(f"已复制 {label} {ellipsize(text)}","success")
         dlog("copy", label, text)
 
     def _copy_current(self):
@@ -937,7 +937,7 @@ class BitForge(QMainWindow):
             return
         self._load_value(v)
         truncated=v < -(1<<63) or v > BIT_MASKS[64] or v != self._value
-        self._toast(f"已粘贴 {text}"+(" · 已截断" if truncated else ""),"warning" if truncated else "success")
+        self._toast(f"已粘贴 {ellipsize(text)}"+(" · 已截断" if truncated else ""),"warning" if truncated else "success")
         dlog("paste", text, "->", hex(self._value))
 
     def _flash_expr_bar(self,color):
@@ -1046,7 +1046,7 @@ class BitForge(QMainWindow):
             self._load_expression(self._expression_history[expr_actions.index(act)])
 
     def _history_entry_label(self,entry):
-        v=entry["v"]; src=entry.get("src","")
+        v=entry["v"]; src=ellipsize(entry.get("src",""),40)
         bits=next(b for b in BIT_MASKS if v<=BIT_MASKS[b])
         head=f"{src}  →  " if src else ""
         return f"{head}0x{v:X}    {v}    {bits} bit"
